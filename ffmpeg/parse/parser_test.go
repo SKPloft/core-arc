@@ -355,6 +355,137 @@ ffmpeg.progress:{"inputs":[{"index":0,"stream":0,"frame":21,"packet":24,"size_kb
 	require.Equal(t, 2, len(parser.process.output), "expected 2 outputs")
 }
 
+func TestTrimLogLevelPrefix(t *testing.T) {
+	tests := []struct {
+		line string
+		want string
+	}{
+		{"", ""},
+		{"plain line", "plain line"},
+		{"[info] ffmpeg.progress:{}", "ffmpeg.progress:{}"},
+		{"[warning] frame=   29 fps= 25", "frame=   29 fps= 25"},
+		{"[trace] x", "x"},
+		{"[quiet] x", "x"},
+		{"[panic] x", "x"},
+		{"[fatal] x", "x"},
+		{"[error] x", "x"},
+		{"[verbose] x", "x"},
+		{"[debug] x", "x"},
+		// Unknown level tokens and bracketed log prefixes are not stats lines.
+		{"[custom] ffmpeg.progress:{}", "[custom] ffmpeg.progress:{}"},
+		{"[INFO] x", "[INFO] x"},
+		{"[info]", "[info]"},
+		{"[info]x", "[info]x"},
+		{"[hls @ 0x7f92a96e8100] Opening 'x.m3u8' for reading", "[hls @ 0x7f92a96e8100] Opening 'x.m3u8' for reading"},
+	}
+
+	for _, tc := range tests {
+		require.Equal(t, tc.want, trimLogLevelPrefix(tc.line), "line %q", tc.line)
+	}
+}
+
+// TestParserJSONLevelPrefixed feeds the stats lines the way FFmpeg 8 emits
+// them with -loglevel level+info: every marker is prefixed with its log level.
+// The parser has to consume them as stats, not as plain log output.
+func TestParserJSONLevelPrefixed(t *testing.T) {
+	parser := New(Config{
+		LogLines: 20,
+	}).(*parser)
+
+	rawdata := `[info] ffmpeg version 8.0.1 Copyright (c) 2000-2025 the FFmpeg developers
+[info]   built with gcc 14.2.0 (Alpine 14.2.0)
+[info] ffmpeg.inputs:[{"url":"rtmp://127.0.0.1/live/stream","format":"flv","index":0,"stream":0,"type":"video","codec":"av1","coder":"av1","bitrate_kbps":0,"duration_sec":0.000000,"language":"und","fps":30.000000,"pix_fmt":"yuv420p","width":1920,"height":1080}]
+[info] ffmpeg.mapping:{"filtergraphs":[],"mapping":[{"input":{"index":0,"stream":0},"output":{"index":0,"stream":0},"copy":false}]}
+[info] ffmpeg.outputs:[{"url":"/dev/null","format":"flv","index":0,"stream":0,"type":"video","codec":"av1","coder":"av1","bitrate_kbps":0,"duration_sec":0.000000,"language":"und","fps":30.000000,"pix_fmt":"yuv420p","width":1920,"height":1080}]
+[info] ffmpeg.progress:{"inputs":[{"index":0,"stream":0,"frame":30,"packet":30,"size_kb":1024}],"outputs":[{"index":0,"stream":0,"frame":30,"packet":30,"q":0.0,"size_kb":1024}],"frame":30,"packet":30,"q":0.0,"size_kb":1024,"time":"0h0m1.00s","speed":1.0,"dup":0,"drop":0}
+[info] ffmpeg.progress:{"inputs":[{"index":0,"stream":0,"frame":60,"packet":60,"size_kb":2048}],"outputs":[{"index":0,"stream":0,"frame":60,"packet":60,"q":0.0,"size_kb":2048}],"frame":60,"packet":60,"q":0.0,"size_kb":2048,"time":"0h0m2.00s","speed":1.0,"dup":0,"drop":0}`
+
+	for _, l := range strings.Split(rawdata, "\n") {
+		parser.Parse(l)
+	}
+
+	require.Equal(t, 1, len(parser.process.input), "expected 1 input")
+	require.Equal(t, 1, len(parser.process.output), "expected 1 output")
+
+	progress := parser.Progress()
+
+	require.Equal(t, "rtmp://127.0.0.1/live/stream", progress.Input[0].Address)
+	require.Equal(t, "av1", progress.Input[0].Codec)
+	require.Equal(t, "av1", progress.Output[0].Codec)
+	require.Equal(t, uint64(60), progress.Frame)
+	require.Equal(t, uint64(60), progress.Packet)
+	require.Equal(t, uint64(2048*1024), progress.Size)
+	require.Equal(t, 2.0, progress.Time)
+	require.Equal(t, 1.0, progress.Speed)
+	require.Greater(t, progress.FPS, float64(0), "FPS has to be derived from the stats payload")
+	require.Greater(t, progress.PPS, float64(0), "PPS has to be derived from the stats payload")
+
+	// Ordinary level-prefixed log lines after the prelude are still logged with
+	// their prefix.
+	parser.Parse("[error] Failed to open segment 12 of playlist 0")
+	parser.Parse("[fatal] Conversion failed!")
+
+	// The stats lines are consumed and don't end up in the log. Ordinary log
+	// lines keep their level prefix, because the severity is read from it.
+	logged := []string{}
+	for _, l := range parser.Log() {
+		require.NotContains(t, l.Data, "ffmpeg.inputs:", "stats line leaked into the log")
+		require.NotContains(t, l.Data, "ffmpeg.mapping:", "stats line leaked into the log")
+		require.NotContains(t, l.Data, "ffmpeg.outputs:", "stats line leaked into the log")
+		require.NotContains(t, l.Data, "ffmpeg.progress:", "stats line leaked into the log")
+
+		logged = append(logged, l.Data)
+	}
+
+	require.Contains(t, logged, "[info] ffmpeg version 8.0.1 Copyright (c) 2000-2025 the FFmpeg developers")
+	require.Contains(t, logged, "[info]   built with gcc 14.2.0 (Alpine 14.2.0)")
+	require.Contains(t, logged, "[error] Failed to open segment 12 of playlist 0")
+	require.Contains(t, logged, "[fatal] Conversion failed!")
+
+	require.Contains(t, parser.Prelude(), "[info] ffmpeg version 8.0.1 Copyright (c) 2000-2025 the FFmpeg developers")
+}
+
+// TestParserUnknownLevelPrefix makes sure that only known FFmpeg log level
+// tokens are stripped. An unknown bracketed prefix keeps the previous meaning.
+func TestParserUnknownLevelPrefix(t *testing.T) {
+	parser := New(Config{
+		LogLines: 20,
+	}).(*parser)
+
+	parser.prelude.done = true
+
+	line := "[custom] frame=   29 fps= 25 q=-1.0 size=N/A time=00:00:01.32 bitrate=N/A speed=0.999x"
+	parser.Parse(line)
+
+	progress := parser.Progress()
+
+	require.Equal(t, uint64(0), progress.Frame, "unknown prefix must not be parsed as progress")
+	require.Equal(t, 1, len(parser.Log()))
+	require.Equal(t, line, parser.Log()[0].Data)
+}
+
+// TestParserProgressLevelPrefixed covers the default stats line, which is also
+// printed through av_log() with an active log level prefix.
+func TestParserProgressLevelPrefixed(t *testing.T) {
+	parser := New(Config{
+		LogLines: 20,
+	}).(*parser)
+
+	parser.prelude.done = true
+	parser.Parse("[info] frame= 5968 fps= 25 q=19.4 size=443kB time=00:03:58.44 bitrate=5632kbits/s speed=0.999x skip=9733 drop=3522 dup=87463")
+
+	d, _ := time.ParseDuration("3m58s440ms")
+	p := parser.Progress()
+
+	require.Equal(t, uint64(5968), p.Frame)
+	require.Equal(t, 19.4, p.Quantizer)
+	require.Equal(t, uint64(453632), p.Size)
+	require.Equal(t, d.Seconds(), p.Time)
+	require.Equal(t, 0.999, p.Speed)
+	require.Equal(t, uint64(3522), p.Drop)
+	require.Equal(t, uint64(87463), p.Dup)
+}
+
 func TestParserJSONDelayed(t *testing.T) {
 	parser := New(Config{
 		LogLines: 20,

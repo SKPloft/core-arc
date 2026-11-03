@@ -168,12 +168,44 @@ func New(config Config) Parser {
 	return p
 }
 
+// trimLogLevelPrefix removes a known FFmpeg log level prefix from a line. FFmpeg
+// prepends such a token when AV_LOG_PRINT_LEVEL is active, i.e. with
+// -loglevel level+<level>, and its JSON stats patch emits the stats markers
+// through av_log(). Lines that don't start with one of the known tokens are
+// returned unchanged, so arbitrary bracketed log text keeps its meaning. The
+// result is a sub-slice of line; no copy is made and no regexp is evaluated.
+func trimLogLevelPrefix(line string) string {
+	if len(line) < 3 || line[0] != '[' {
+		return line
+	}
+
+	end := strings.IndexByte(line, ']')
+	if end < 2 || end+1 >= len(line) || line[end+1] != ' ' {
+		return line
+	}
+
+	switch line[1:end] {
+	case "quiet", "panic", "fatal", "error", "warning", "info", "verbose", "debug", "trace":
+		return line[end+2:]
+	}
+
+	return line
+}
+
 func (p *parser) Parse(line string) uint64 {
-	isDefaultProgress := strings.HasPrefix(line, "frame=")
-	isFFmpegInputs := strings.HasPrefix(line, "ffmpeg.inputs:")
-	isFFmpegOutputs := strings.HasPrefix(line, "ffmpeg.outputs:")
-	isFFmpegProgress := strings.HasPrefix(line, "ffmpeg.progress:")
-	isAVstreamProgress := strings.HasPrefix(line, "avstream.progress:")
+	// FFmpeg >= 7 emits the stats markers through av_log(). With
+	// AV_LOG_PRINT_LEVEL active (i.e. -loglevel level+info) every stats line is
+	// prefixed with its log level, e.g. "[info] ffmpeg.progress:{...}". The
+	// markers are therefore matched on the line without that prefix, while the
+	// original line is kept for logs and prelude output.
+	statsLine := trimLogLevelPrefix(line)
+
+	isDefaultProgress := strings.HasPrefix(statsLine, "frame=")
+	isFFmpegInputs := strings.HasPrefix(statsLine, "ffmpeg.inputs:")
+	isFFmpegOutputs := strings.HasPrefix(statsLine, "ffmpeg.outputs:")
+	isFFmpegMapping := strings.HasPrefix(statsLine, "ffmpeg.mapping:")
+	isFFmpegProgress := strings.HasPrefix(statsLine, "ffmpeg.progress:")
+	isAVstreamProgress := strings.HasPrefix(statsLine, "avstream.progress:")
 
 	if p.logStart.IsZero() {
 		p.lock.log.Lock()
@@ -195,7 +227,7 @@ func (p *parser) Parse(line string) uint64 {
 		}
 
 		if isFFmpegInputs {
-			if err := p.parseIO("input", strings.TrimPrefix(line, "ffmpeg.inputs:")); err != nil {
+			if err := p.parseIO("input", strings.TrimPrefix(statsLine, "ffmpeg.inputs:")); err != nil {
 				p.logger.WithFields(log.Fields{
 					"line":  line,
 					"error": err,
@@ -206,7 +238,7 @@ func (p *parser) Parse(line string) uint64 {
 		}
 
 		if isFFmpegOutputs {
-			if err := p.parseIO("output", strings.TrimPrefix(line, "ffmpeg.outputs:")); err != nil {
+			if err := p.parseIO("output", strings.TrimPrefix(statsLine, "ffmpeg.outputs:")); err != nil {
 				p.logger.WithFields(log.Fields{
 					"line":  line,
 					"error": err,
@@ -235,7 +267,7 @@ func (p *parser) Parse(line string) uint64 {
 		}
 	}
 
-	if !isDefaultProgress && !isFFmpegProgress && !isAVstreamProgress {
+	if !isDefaultProgress && !isFFmpegProgress && !isAVstreamProgress && !isFFmpegMapping {
 		// Write the current non-progress line to the log
 		p.addLog(line)
 
@@ -255,6 +287,12 @@ func (p *parser) Parse(line string) uint64 {
 	}
 
 	if !p.prelude.done {
+		return 0
+	}
+
+	if isFFmpegMapping {
+		// The stream mapping is static metadata that carries no progress. It is
+		// recognized so that it is neither logged nor mixed into the prelude.
 		return 0
 	}
 
@@ -293,7 +331,7 @@ func (p *parser) Parse(line string) uint64 {
 	// Update the progress
 
 	if isAVstreamProgress {
-		if err := p.parseAVstreamProgress(strings.TrimPrefix(line, "avstream.progress:")); err != nil {
+		if err := p.parseAVstreamProgress(strings.TrimPrefix(statsLine, "avstream.progress:")); err != nil {
 			p.logger.WithFields(log.Fields{
 				"line":  line,
 				"error": err,
@@ -304,7 +342,7 @@ func (p *parser) Parse(line string) uint64 {
 	}
 
 	if isDefaultProgress {
-		if err := p.parseDefaultProgress(line); err != nil {
+		if err := p.parseDefaultProgress(statsLine); err != nil {
 			p.logger.WithFields(log.Fields{
 				"line":  line,
 				"error": err,
@@ -312,7 +350,7 @@ func (p *parser) Parse(line string) uint64 {
 			return 0
 		}
 	} else if isFFmpegProgress {
-		if err := p.parseFFmpegProgress(strings.TrimPrefix(line, "ffmpeg.progress:")); err != nil {
+		if err := p.parseFFmpegProgress(strings.TrimPrefix(statsLine, "ffmpeg.progress:")); err != nil {
 			p.logger.WithFields(log.Fields{
 				"line":  line,
 				"error": err,
