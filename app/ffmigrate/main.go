@@ -188,7 +188,7 @@ func migrateProcessConfig(logger log.Logger, config *app.Config, version string)
 		return false, fmt.Errorf("unsupported FFmpeg version: %w", err)
 	}
 
-	if targetmajor > 6 {
+	if targetmajor > 8 {
 		err := fmt.Errorf("unknown FFmpeg version found: %d", targetmajor)
 		logger.Error().WithError(err).Log("Unsupported FFmpeg version")
 		return false, fmt.Errorf("unsupported FFmpeg version: %w", err)
@@ -228,6 +228,14 @@ func migrateProcessConfig(logger log.Logger, config *app.Config, version string)
 		// Nothing happens
 
 		currentmajor = 6
+	}
+
+	if currentmajor == 6 && targetmajor > 6 {
+		// Migration from version 6 to version 7 or 8
+		// Nothing happens: no process option used by core changed its meaning.
+		// The stats output of these versions is handled by the process parser.
+
+		currentmajor = targetmajor
 	}
 
 	if migrated {

@@ -10,9 +10,9 @@ if [ -x ./bin/import ]; then
     fi
 fi
 
-# Run the FFmpeg migration program. In case a FFmpeg 5 binary is present, it will create a
-# backup of the current DB and modify the FFmpeg parameter such that they are compatible
-# with FFmpeg 5.
+# Run the FFmpeg migration program. In case a newer FFmpeg binary is present, it will create
+# a backup of the current DB and modify the FFmpeg parameter such that they are compatible
+# with the detected FFmpeg version.
 
 if [ -x ./bin/ffmigrate ]; then
     ./bin/ffmigrate
