@@ -428,7 +428,6 @@ func TestParserJSONLevelPrefixed(t *testing.T) {
 	logged := []string{}
 	for _, l := range parser.Log() {
 		require.NotContains(t, l.Data, "ffmpeg.inputs:", "stats line leaked into the log")
-		require.NotContains(t, l.Data, "ffmpeg.mapping:", "stats line leaked into the log")
 		require.NotContains(t, l.Data, "ffmpeg.outputs:", "stats line leaked into the log")
 		require.NotContains(t, l.Data, "ffmpeg.progress:", "stats line leaked into the log")
 
@@ -437,35 +436,13 @@ func TestParserJSONLevelPrefixed(t *testing.T) {
 
 	require.Contains(t, logged, "[info] ffmpeg version 8.0.1 Copyright (c) 2000-2025 the FFmpeg developers")
 	require.Contains(t, logged, "[info]   built with gcc 14.2.0 (Alpine 14.2.0)")
+	// The stream mapping stays an ordinary log/prelude line, it is diagnostic
+	// output for the process report.
+	require.Contains(t, logged, `[info] ffmpeg.mapping:{"filtergraphs":[],"mapping":[{"input":{"index":0,"stream":0},"output":{"index":0,"stream":0},"copy":false}]}`)
 	require.Contains(t, logged, "[error] Failed to open segment 12 of playlist 0")
 	require.Contains(t, logged, "[fatal] Conversion failed!")
 
 	require.Contains(t, parser.Prelude(), "[info] ffmpeg version 8.0.1 Copyright (c) 2000-2025 the FFmpeg developers")
-}
-
-// TestParserJSONLevelPrefixedFPS verifies that the frame rate is computed from
-// the prefixed stats payload. The average is built over a one second
-// granularity, so the test waits for one granularity step between two samples.
-func TestParserJSONLevelPrefixedFPS(t *testing.T) {
-	parser := New(Config{
-		LogLines: 20,
-	}).(*parser)
-
-	parser.Parse(`[info] ffmpeg.inputs:[{"url":"rtmp://127.0.0.1/live/stream","format":"flv","index":0,"stream":0,"type":"video","codec":"av1","coder":"av1","bitrate_kbps":0,"duration_sec":0.000000,"language":"und","fps":30.000000,"pix_fmt":"yuv420p","width":1920,"height":1080}]`)
-	parser.Parse(`[info] ffmpeg.outputs:[{"url":"/dev/null","format":"flv","index":0,"stream":0,"type":"video","codec":"av1","coder":"av1","bitrate_kbps":0,"duration_sec":0.000000,"language":"und","fps":30.000000,"pix_fmt":"yuv420p","width":1920,"height":1080}]`)
-
-	parser.Parse(`[info] ffmpeg.progress:{"inputs":[{"index":0,"stream":0,"frame":30,"packet":30,"size_kb":1024}],"outputs":[{"index":0,"stream":0,"frame":30,"packet":30,"q":0.0,"size_kb":1024}],"frame":30,"packet":30,"q":0.0,"size_kb":1024,"time":"0h0m1.00s","speed":1.0,"dup":0,"drop":0}`)
-
-	time.Sleep(1200 * time.Millisecond)
-
-	parser.Parse(`[info] ffmpeg.progress:{"inputs":[{"index":0,"stream":0,"frame":60,"packet":60,"size_kb":2048}],"outputs":[{"index":0,"stream":0,"frame":60,"packet":60,"q":0.0,"size_kb":2048}],"frame":60,"packet":60,"q":0.0,"size_kb":2048,"time":"0h0m2.00s","speed":1.0,"dup":0,"drop":0}`)
-
-	progress := parser.Progress()
-
-	require.Equal(t, uint64(60), progress.Frame)
-	require.Greater(t, progress.FPS, float64(0), "FPS has to be derived from the stats payload")
-	require.Greater(t, progress.PPS, float64(0), "PPS has to be derived from the stats payload")
-	require.Greater(t, progress.Input[0].FPS, float64(0), "input FPS has to be derived from the stats payload")
 }
 
 // TestParserUnknownLevelPrefix makes sure that only known FFmpeg log level

@@ -203,7 +203,6 @@ func (p *parser) Parse(line string) uint64 {
 	isDefaultProgress := strings.HasPrefix(statsLine, "frame=")
 	isFFmpegInputs := strings.HasPrefix(statsLine, "ffmpeg.inputs:")
 	isFFmpegOutputs := strings.HasPrefix(statsLine, "ffmpeg.outputs:")
-	isFFmpegMapping := strings.HasPrefix(statsLine, "ffmpeg.mapping:")
 	isFFmpegProgress := strings.HasPrefix(statsLine, "ffmpeg.progress:")
 	isAVstreamProgress := strings.HasPrefix(statsLine, "avstream.progress:")
 
@@ -267,7 +266,7 @@ func (p *parser) Parse(line string) uint64 {
 		}
 	}
 
-	if !isDefaultProgress && !isFFmpegProgress && !isAVstreamProgress && !isFFmpegMapping {
+	if !isDefaultProgress && !isFFmpegProgress && !isAVstreamProgress {
 		// Write the current non-progress line to the log
 		p.addLog(line)
 
@@ -287,12 +286,6 @@ func (p *parser) Parse(line string) uint64 {
 	}
 
 	if !p.prelude.done {
-		return 0
-	}
-
-	if isFFmpegMapping {
-		// The stream mapping is static metadata that carries no progress. It is
-		// recognized so that it is neither logged nor mixed into the prelude.
 		return 0
 	}
 

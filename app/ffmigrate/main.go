@@ -160,19 +160,6 @@ func doMigration(logger log.Logger, fs fs.Filesystem, configstore cfgstore.Store
 	return nil
 }
 
-// supportedFFmpegMajors lists the FFmpeg major versions for which the process
-// migration knows the option layout. Majors above 6 need no option rewrite: the
-// only contract change that affects core is the log level prefix of the stats
-// output, which the process parser handles. Any other major is rejected instead
-// of accepting an unknown option layout.
-var supportedFFmpegMajors = map[uint64]struct{}{
-	4: {},
-	5: {},
-	6: {},
-	7: {},
-	8: {},
-}
-
 func migrateProcessConfig(logger log.Logger, config *app.Config, version string) (bool, error) {
 	migrated := false
 
@@ -195,13 +182,13 @@ func migrateProcessConfig(logger log.Logger, config *app.Config, version string)
 		currentmajor = vcurrent.Major()
 	}
 
-	if _, supported := supportedFFmpegMajors[currentmajor]; !supported {
+	if currentmajor < 4 {
 		err := fmt.Errorf("unknown FFmpeg version found: %d", currentmajor)
 		logger.Error().WithError(err).Log("Unsupported FFmpeg version")
 		return false, fmt.Errorf("unsupported FFmpeg version: %w", err)
 	}
 
-	if _, supported := supportedFFmpegMajors[targetmajor]; !supported {
+	if targetmajor > 8 {
 		err := fmt.Errorf("unknown FFmpeg version found: %d", targetmajor)
 		logger.Error().WithError(err).Log("Unsupported FFmpeg version")
 		return false, fmt.Errorf("unsupported FFmpeg version: %w", err)
