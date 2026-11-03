@@ -200,31 +200,66 @@ func TestHLSRewriteFMP4MediaPlaylist(t *testing.T) {
 }
 
 // TestHLSRewriteSegmentKeepsExistingQuery checks that all other query
-// parameters of a segment URI are kept byte by byte and that an already
-// existing session parameter is replaced instead of duplicated.
+// parameters of a segment URI are kept byte by byte and that every existing
+// session parameter is removed instead of being duplicated. The receiver reads
+// the session with the decoded query semantics, hence percent-encoded names
+// and parameters without a value have to be recognized as well.
 func TestHLSRewriteSegmentKeepsExistingQuery(t *testing.T) {
-	e, _, _ := newHLSTestServer(t)
+	tests := []struct {
+		name string
+		uri  string
+		want string
+	}{
+		{
+			name: "plain parameters",
+			uri:  "segment.m4s?token=a%2Fb&expires=99",
+			want: "segment.m4s?token=a%2Fb&expires=99&session=" + testSessionID,
+		},
+		{
+			name: "existing session parameter",
+			uri:  "segment.m4s?session=AAAAAAAAAAAAAAAAAAAAAA&expires=99",
+			want: "segment.m4s?expires=99&session=" + testSessionID,
+		},
+		{
+			name: "percent encoded parameter name",
+			uri:  "segment.m4s?%73ession=AAAAAAAAAAAAAAAAAAAAAA&expires=99",
+			want: "segment.m4s?expires=99&session=" + testSessionID,
+		},
+		{
+			name: "parameter without a value",
+			uri:  "segment.m4s?session",
+			want: "segment.m4s?session=" + testSessionID,
+		},
+		{
+			name: "look-alike parameter names",
+			uri:  "segment.m4s?session_id=7&xsession=1",
+			want: "segment.m4s?session_id=7&xsession=1&session=" + testSessionID,
+		},
+	}
 
-	playlist := "#EXTM3U\n" +
-		"#EXT-X-VERSION:7\n" +
-		"#EXT-X-MAP:URI=\"init.mp4?token=a%2Fb\"\n" +
-		"#EXTINF:4.000000,\n" +
-		"segment1.m4s?token=a%2Fb&expires=99\n" +
-		"#EXTINF:4.000000,\n" +
-		"segment2.m4s?session=AAAAAAAAAAAAAAAAAAAAAA&expires=99\n"
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			e, _, _ := newHLSTestServer(t)
 
-	serveFiles(e, map[string]string{
-		"/hls/live.m3u8": playlist,
-	})
+			playlist := "#EXTM3U\n" +
+				"#EXT-X-VERSION:7\n" +
+				"#EXT-X-MAP:URI=\"init.mp4?token=a%2Fb\"\n" +
+				"#EXTINF:4.000000,\n" +
+				test.uri + "\n"
 
-	rec := get(e, "/hls/live.m3u8?session="+testSessionID)
+			serveFiles(e, map[string]string{
+				"/hls/live.m3u8": playlist,
+			})
 
-	body := rec.Body.String()
+			rec := get(e, "/hls/live.m3u8?session="+testSessionID)
 
-	requireContains(t, body, `#EXT-X-MAP:URI="init.mp4?token=a%2Fb&session=`+testSessionID+`"`)
-	requireContains(t, body, "segment1.m4s?token=a%2Fb&expires=99&session="+testSessionID)
-	requireContains(t, body, "segment2.m4s?session="+testSessionID+"&expires=99")
-	requireNotContains(t, body, "session=AAAAAAAAAAAAAAAAAAAAAA")
+			body := rec.Body.String()
+
+			requireContains(t, body, `#EXT-X-MAP:URI="init.mp4?token=a%2Fb&session=`+testSessionID+`"`)
+			requireContains(t, body, test.want)
+			requireNotContains(t, body, "session=AAAAAAAAAAAAAAAAAAAAAA")
+		})
+	}
 }
 
 // TestHLSRewriteSkipsExternalURIs checks that URIs pointing outside of the

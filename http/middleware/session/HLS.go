@@ -37,11 +37,6 @@ var hlsSegmentSuffixes = []string{".ts", ".mp4", ".m4s"}
 // hlsTagURI matches the URI attribute of a HLS tag, i.e. #EXT-X-MAP:URI="init.mp4".
 var hlsTagURI = regexp.MustCompile(`URI="([^"]*)"`)
 
-// hlsQuerySession matches the session parameter in a raw query string. The
-// first group captures the delimiter in front of the parameter, so that it can
-// be kept when the value is replaced.
-var hlsQuerySession = regexp.MustCompile(`(^|&)session=[^&]*`)
-
 type HLSConfig struct {
 	// Skipper defines a function to skip middleware.
 	Skipper          middleware.Skipper
@@ -594,9 +589,11 @@ func resolveHLSURI(dir, uri string) (string, bool) {
 	return urlpath.Join(dir, u.Path), true
 }
 
-// addSessionQuery adds the session ID to a raw query string. All other
-// parameters are kept byte by byte, so that signed queries stay valid. An
-// already existing session parameter is replaced in place.
+// addSessionQuery adds the session ID to a raw query string. Every existing
+// session parameter is removed, including percent-encoded parameter names and
+// parameters without a value, because a request reads the session with the
+// decoded query semantics of the receiver. All other parameters are kept byte
+// by byte, so that signed queries stay valid.
 func addSessionQuery(rawQuery, sessionID string) string {
 	if len(sessionID) == 0 {
 		return rawQuery
@@ -608,9 +605,27 @@ func addSessionQuery(rawQuery, sessionID string) string {
 		return session
 	}
 
-	if hlsQuerySession.MatchString(rawQuery) {
-		return hlsQuerySession.ReplaceAllString(rawQuery, "${1}"+session)
+	components := strings.Split(rawQuery, "&")
+	kept := make([]string, 0, len(components)+1)
+
+	for _, component := range components {
+		name := component
+		if i := strings.IndexByte(component, '='); i >= 0 {
+			name = component[:i]
+		}
+
+		// The receiver decodes the parameter names, hence a name that decodes
+		// to session identifies a session parameter.
+		if decoded, err := url.QueryUnescape(name); err == nil && decoded == "session" {
+			continue
+		}
+
+		kept = append(kept, component)
 	}
 
-	return rawQuery + "&" + session
+	if len(kept) == 0 {
+		return session
+	}
+
+	return strings.Join(kept, "&") + "&" + session
 }
