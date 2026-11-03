@@ -4,7 +4,9 @@
 
 -   Add ConnectionIdleTimeout to RTMP server
 -   Add WithLevel() to Logger interface
+-   Add migrating to FFmpeg 7 and FFmpeg 8
 -   Fix datarhei/restreamer#759
+-   Fix parsing the FFmpeg stats output if it is prefixed with a log level (FFmpeg 7 and 8 with `-loglevel level+...`)
 -   Fix HLS session accounting and rewriting for fMP4 segments and EXT-X-MAP
 -   Fix various RTMP bugs
 -   Fix wrong log output when receiving a RTMP stream
