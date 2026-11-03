@@ -1,4 +1,10 @@
-// Package session is a HLS session middleware for Gin
+// Package session is a HLS session middleware for echo.
+//
+// The middleware accounts the ingress and egress traffic of a HLS session. A
+// session is identified by the session query parameter that is added to all
+// URIs of a playlist. Both MPEG-TS (.ts) and fMP4 (.mp4, .m4s) segments are
+// supported, including the initialization segment that is referenced by
+// EXT-X-MAP.
 package session
 
 import (
@@ -20,6 +26,21 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/lithammer/shortuuid/v4"
 )
+
+const hlsPlaylistSuffix = ".m3u8"
+
+// hlsSegmentSuffixes are the suffixes of all media segments of a HLS session.
+// .ts is the suffix of MPEG-TS segments, .mp4 and .m4s are the suffixes of
+// fMP4 segments. The initialization segment of EXT-X-MAP can use any of them.
+var hlsSegmentSuffixes = []string{".ts", ".mp4", ".m4s"}
+
+// hlsTagURI matches the URI attribute of a HLS tag, i.e. #EXT-X-MAP:URI="init.mp4".
+var hlsTagURI = regexp.MustCompile(`URI="([^"]*)"`)
+
+// hlsQuerySession matches the session parameter in a raw query string. The
+// first group captures the delimiter in front of the parameter, so that it can
+// be kept when the value is replaced.
+var hlsQuerySession = regexp.MustCompile(`(^|&)session=[^&]*`)
 
 type HLSConfig struct {
 	// Skipper defines a function to skip middleware.
@@ -97,8 +118,8 @@ func (h *hls) handleIngress(c echo.Context, next echo.HandlerFunc) error {
 
 	path := req.URL.Path
 
-	if strings.HasSuffix(path, ".m3u8") {
-		// Read out the path of the .ts files and look them up in the ts-map.
+	if isPlaylistPath(path) {
+		// Read out the path of the media segments and look them up in the segment-map.
 		// Add it as ingress for the respective "sessionId". The "sessionId" is the .m3u8 file name.
 		reader := req.Body
 		r := &bodyReader{
@@ -137,8 +158,8 @@ func (h *hls) handleIngress(c echo.Context, next echo.HandlerFunc) error {
 				h.lock.Unlock()
 			}
 		}()
-	} else if strings.HasSuffix(path, ".ts") {
-		// Get the size of the .ts file and store it in the ts-map for later use.
+	} else if isSegmentPath(path) {
+		// Get the size of the media segment and store it in the segment-map for later use.
 		reader := req.Body
 		r := &bodysizeReader{
 			reader: req.Body,
@@ -170,8 +191,8 @@ func (h *hls) handleEgress(c echo.Context, next echo.HandlerFunc) error {
 	path := req.URL.Path
 	sessionID := c.QueryParam("session")
 
-	isM3U8 := strings.HasSuffix(path, ".m3u8")
-	isTS := strings.HasSuffix(path, ".ts")
+	isM3U8 := isPlaylistPath(path)
+	isSegment := isSegmentPath(path)
 
 	rewrite := false
 
@@ -257,13 +278,15 @@ func (h *hls) handleEgress(c echo.Context, next echo.HandlerFunc) error {
 		res.Write(rewriter.buffer.Bytes())
 	}
 
-	if isM3U8 || isTS {
+	if isM3U8 || isSegment {
 		// Collect how many bytes we've written in this session
 		h.egressCollector.Egress(sessionID, headerSize(res.Header()))
 		h.egressCollector.Egress(sessionID, res.Size)
 
-		if isTS {
-			// Activate the session. If the session is already active, this is a noop
+		if isSegment {
+			// Activate the session. If the session is already active, this is a noop.
+			// For unknown or empty session IDs, i.e. a download outside of a HLS
+			// session, the collector is a noop as well.
 			h.egressCollector.Activate(sessionID)
 		}
 	}
@@ -312,31 +335,32 @@ func (r *bodyReader) getSegments(dir string) []string {
 			continue
 		}
 
-		// Ignore comments
+		// Tags are ignored, except for the URI of the initialization segment.
+		// Its bytes arrive outside of the playlist and have to be accounted for
+		// together with the segments.
 		if strings.HasPrefix(line, "#") {
+			if !strings.HasPrefix(line, "#EXT-X-MAP:") {
+				continue
+			}
+
+			for _, uri := range hlsTagURI.FindAllStringSubmatch(line, -1) {
+				if path, ok := resolveHLSURI(dir, uri[1]); ok {
+					segments = append(segments, path)
+				}
+			}
+
 			continue
 		}
 
-		u, err := url.Parse(line)
-		if err != nil {
-			// Invalid URL
+		path, ok := resolveHLSURI(dir, line)
+		if !ok {
+			// Invalid or absolute URL
 			continue
 		}
 
-		if u.Scheme != "" {
-			// Ignore full URLs
+		// Ignore anything that doesn't end in a media segment suffix
+		if !isSegmentPath(path) {
 			continue
-		}
-
-		// Ignore anything that doesn't end in .ts
-		if !strings.HasSuffix(u.Path, ".ts") {
-			continue
-		}
-
-		path := u.Path
-
-		if !strings.HasPrefix(u.Path, "/") {
-			path = urlpath.Join(dir, u.Path)
 		}
 
 		segments = append(segments, path)
@@ -378,6 +402,8 @@ func (g *sessionRewriter) rewriteHLS(sessionID string, requestURL *url.URL) {
 
 	isMaster := false
 
+	dir := urlpath.Dir(requestURL.Path)
+
 	// Find all URLS in the .m3u8 and add the session ID to the query string
 	scanner := bufio.NewScanner(&g.buffer)
 	for scanner.Scan() {
@@ -389,57 +415,59 @@ func (g *sessionRewriter) rewriteHLS(sessionID string, requestURL *url.URL) {
 			continue
 		}
 
-		// Write comments unmodified
+		// Tags are written unmodified except for the URI attribute they may carry
 		if strings.HasPrefix(line, "#") {
+			rewritten, subPlaylist := rewriteTagURI(line, sessionID)
+
+			if subPlaylist {
+				isMaster = true
+			}
+
+			buffer.WriteString(rewritten + "\n")
+			continue
+		}
+
+		u, ok := parseHLSURI(line)
+		if !ok {
+			// Write invalid and absolute URLs unmodified
 			buffer.WriteString(line + "\n")
 			continue
 		}
 
-		u, err := url.Parse(line)
-		if err != nil {
+		// Write anything that doesn't end in .m3u8, .ts, .mp4, or .m4s unmodified
+		if !isPlaylistPath(u.Path) && !isSegmentPath(u.Path) {
 			buffer.WriteString(line + "\n")
 			continue
 		}
-
-		// Write anything that doesn't end in .m3u8 or .ts unmodified
-		if !strings.HasSuffix(u.Path, ".m3u8") && !strings.HasSuffix(u.Path, ".ts") {
-			buffer.WriteString(line + "\n")
-			continue
-		}
-
-		q := u.Query()
-
-		loop := false
 
 		// If this is a master manifest (i.e. an m3u8 which contains references to other m3u8), then
 		// we give each substream an own session ID if they don't have already.
-		if strings.HasSuffix(u.Path, ".m3u8") {
+		if isPlaylistPath(u.Path) {
 			// Check if we're referring to ourselves. This will cause an infinite loop
 			// and has to be stopped.
 			file := u.Path
 			if !strings.HasPrefix(file, "/") {
-				dir := urlpath.Dir(requestURL.Path)
 				file = filepath.Join(dir, file)
 			}
 
-			if requestURL.Path == file {
-				loop = true
-			}
+			loop := requestURL.Path == file
 
-			q.Set("session", shortuuid.New())
+			u.RawQuery = addSessionQuery(u.RawQuery, shortuuid.New())
 
 			isMaster = true
-		} else {
-			q.Set("session", sessionID)
+
+			if loop {
+				buffer.WriteString("# m3u8 is referencing itself: " + u.String() + "\n")
+			} else {
+				buffer.WriteString(u.String() + "\n")
+			}
+
+			continue
 		}
 
-		u.RawQuery = q.Encode()
+		u.RawQuery = addSessionQuery(u.RawQuery, sessionID)
 
-		if loop {
-			buffer.WriteString("# m3u8 is referencing itself: " + u.String() + "\n")
-		} else {
-			buffer.WriteString(u.String() + "\n")
-		}
+		buffer.WriteString(u.String() + "\n")
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -462,4 +490,62 @@ func (g *sessionRewriter) rewriteHLS(sessionID string, requestURL *url.URL) {
 	}
 
 	g.buffer = buffer
+}
+
+// rewriteTagURI adds the session ID to the URI attribute of a HLS tag. The tag
+// itself and all other attributes are kept byte by byte. A URI that refers to
+// another playlist (i.e. #EXT-X-MEDIA:URI="audio.m3u8") is treated like a
+// substream of a master playlist and gets an own session ID, all other URIs
+// (i.e. the initialization segment of #EXT-X-MAP) stay within the current
+// session. The second return value reports whether the tag refers to another
+// playlist.
+func rewriteTagURI(line, sessionID string) (string, bool) {
+	matches := hlsTagURI.FindAllStringSubmatchIndex(line, -1)
+	if len(matches) == 0 {
+		return line, false
+	}
+
+	tag := line
+	if i := strings.IndexByte(line, ':'); i >= 0 {
+		tag = line[:i]
+	}
+
+	var buffer bytes.Buffer
+
+	subPlaylist := false
+	last := 0
+
+	for _, match := range matches {
+		uriStart, uriEnd := match[2], match[3]
+
+		u, ok := parseHLSURI(line[uriStart:uriEnd])
+		if !ok {
+			continue
+		}
+
+		switch {
+		case tag == "#EXT-X-MAP":
+			u.RawQuery = addSessionQuery(u.RawQuery, sessionID)
+		case isPlaylistPath(u.Path):
+			u.RawQuery = addSessionQuery(u.RawQuery, shortuuid.New())
+			subPlaylist = true
+		case isSegmentPath(u.Path):
+			u.RawQuery = addSessionQuery(u.RawQuery, sessionID)
+		default:
+			continue
+		}
+
+		buffer.WriteString(line[last:uriStart])
+		buffer.WriteString(u.String())
+
+		last = uriEnd
+	}
+
+	if last == 0 {
+		return line, false
+	}
+
+	buffer.WriteString(line[last:])
+
+	return buffer.String(), subPlaylist
 }
