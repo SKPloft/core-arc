@@ -549,3 +549,68 @@ func rewriteTagURI(line, sessionID string) (string, bool) {
 
 	return buffer.String(), subPlaylist
 }
+
+func isPlaylistPath(path string) bool {
+	return strings.HasSuffix(path, hlsPlaylistSuffix)
+}
+
+func isSegmentPath(path string) bool {
+	for _, suffix := range hlsSegmentSuffixes {
+		if strings.HasSuffix(path, suffix) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// parseHLSURI parses a relative URI from a playlist. Absolute URIs and URIs
+// without a path are not part of the session and are therefore rejected.
+func parseHLSURI(uri string) (*url.URL, bool) {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return nil, false
+	}
+
+	if u.Scheme != "" || u.Host != "" || len(u.Path) == 0 {
+		return nil, false
+	}
+
+	return u, true
+}
+
+// resolveHLSURI returns the absolute path of a relative URI from a playlist.
+// The URI is resolved against the directory of the playlist.
+func resolveHLSURI(dir, uri string) (string, bool) {
+	u, ok := parseHLSURI(uri)
+	if !ok {
+		return "", false
+	}
+
+	if strings.HasPrefix(u.Path, "/") {
+		return u.Path, true
+	}
+
+	return urlpath.Join(dir, u.Path), true
+}
+
+// addSessionQuery adds the session ID to a raw query string. All other
+// parameters are kept byte by byte, so that signed queries stay valid. An
+// already existing session parameter is replaced in place.
+func addSessionQuery(rawQuery, sessionID string) string {
+	if len(sessionID) == 0 {
+		return rawQuery
+	}
+
+	session := "session=" + url.QueryEscape(sessionID)
+
+	if len(rawQuery) == 0 {
+		return session
+	}
+
+	if hlsQuerySession.MatchString(rawQuery) {
+		return hlsQuerySession.ReplaceAllString(rawQuery, "${1}"+session)
+	}
+
+	return rawQuery + "&" + session
+}
