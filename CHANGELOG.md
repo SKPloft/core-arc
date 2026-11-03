@@ -5,6 +5,7 @@
 -   Add ConnectionIdleTimeout to RTMP server
 -   Add WithLevel() to Logger interface
 -   Fix datarhei/restreamer#759
+-   Fix HLS session accounting and rewriting for fMP4 segments and EXT-X-MAP
 -   Fix various RTMP bugs
 -   Fix wrong log output when receiving a RTMP stream
 -   Fix skipping session handling if collectors are nil
