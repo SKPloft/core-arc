@@ -94,5 +94,3 @@ func TestMigrateProcessConfigUnknownTargetMajor(t *testing.T) {
 	require.Contains(t, err.Error(), "unknown FFmpeg version found: 9")
 	require.Equal(t, "^8.0.1", config.FFVersion, "the stored version must not be modified")
 }
-
-
