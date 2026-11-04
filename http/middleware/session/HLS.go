@@ -362,7 +362,6 @@ func (r *bodyReader) getSegments(dir string) []string {
 			continue
 		}
 
-
 		segments = append(segments, path)
 	}
 
@@ -439,7 +438,6 @@ func (g *sessionRewriter) rewriteHLS(sessionID string, requestURL *url.URL) {
 			buffer.WriteString(line + "\n")
 			continue
 		}
-
 
 		// If this is a master manifest (i.e. an m3u8 which contains references to other m3u8), then
 		// we give each substream an own session ID if they don't have already.
