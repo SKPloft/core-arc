@@ -5,6 +5,7 @@
 -   Add support for HTTP range requests
 -   Fix counting HLSv7 sessions [#849](https://github.com/datarhei/restreamer#849)
 -   Fix HLS session accounting and rewriting for fMP4 segments and EXT-X-MAP
+-   Fix parsing the default FFmpeg progress report with a log level prefix
 -   Update dependencies
 
 ### Core v16.15.0 > v16.16.0
