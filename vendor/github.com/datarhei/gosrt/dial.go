@@ -190,6 +190,7 @@ func Dial(network, address string, config Config) (Conn, error) {
 	// Wait for handshake to conclude
 	response := <-dl.connChan
 	if response.err != nil {
+		timer.Stop()
 		dl.Close()
 		return nil, response.err
 	}
@@ -234,7 +235,12 @@ func (dl *dialer) reader(ctx context.Context) {
 			dl.log("packet:recv:dump", func() string { return p.Dump() })
 
 			if p.Header().DestinationSocketId != dl.socketId {
-				break
+				// libsrt <= 1.3.0 sends the CONCLUSION response with DestinationSocketId = 0
+				if !(p.Header().IsControlPacket &&
+					p.Header().ControlType == packet.CTRLTYPE_HANDSHAKE &&
+					p.Header().DestinationSocketId == 0) {
+					break
+				}
 			}
 
 			if p.Header().IsControlPacket && p.Header().ControlType == packet.CTRLTYPE_HANDSHAKE {
@@ -513,7 +519,7 @@ func (dl *dialer) handleHandshake(p packet.Packet) {
 			crypto:                      dl.crypto,
 			keyBaseEncryption:           packet.EvenKeyEncrypted,
 			onSend:                      dl.send,
-			onShutdown:                  func(socketId uint32) { dl.Close() },
+			onShutdown:                  func(*srtConn) { dl.Close() },
 			logger:                      dl.config.Logger,
 		})
 

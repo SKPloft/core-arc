@@ -51,10 +51,10 @@ type Restreamer interface {
 	ProbeWithTimeout(id string, timeout time.Duration) app.Probe // Probe a process with specific timeout
 	Skills() skills.Skills                                       // Get the ffmpeg skills
 	ReloadSkills() error                                         // Reload the ffmpeg skills
-	SetProcessMetadata(id, key string, data interface{}) error   // Set metatdata to a process
-	GetProcessMetadata(id, key string) (interface{}, error)      // Get previously set metadata from a process
-	SetMetadata(key string, data interface{}) error              // Set general metadata
-	GetMetadata(key string) (interface{}, error)                 // Get previously set general metadata
+	SetProcessMetadata(id, key string, data any) error           // Set metatdata to a process
+	GetProcessMetadata(id, key string) (any, error)              // Get previously set metadata from a process
+	SetMetadata(key string, data any) error                      // Set general metadata
+	GetMetadata(key string) (any, error)                         // Get previously set general metadata
 }
 
 // Config is the required configuration for a new restreamer instance.
@@ -81,7 +81,7 @@ type task struct {
 	playout   map[string]int
 	logger    log.Logger
 	usesDisk  bool // Whether this task uses the disk
-	metadata  map[string]interface{}
+	metadata  map[string]any
 }
 
 type restream struct {
@@ -100,7 +100,7 @@ type restream struct {
 	replace  replace.Replacer
 	tasks    map[string]*task
 	logger   log.Logger
-	metadata map[string]interface{}
+	metadata map[string]any
 
 	lock sync.RWMutex
 
@@ -1418,7 +1418,7 @@ func (r *restream) GetPlayout(id, inputid string) (string, error) {
 
 var ErrMetadataKeyNotFound = errors.New("unknown key")
 
-func (r *restream) SetProcessMetadata(id, key string, data interface{}) error {
+func (r *restream) SetProcessMetadata(id, key string, data any) error {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -1432,7 +1432,7 @@ func (r *restream) SetProcessMetadata(id, key string, data interface{}) error {
 	}
 
 	if task.metadata == nil {
-		task.metadata = make(map[string]interface{})
+		task.metadata = make(map[string]any)
 	}
 
 	if data == nil {
@@ -1450,7 +1450,7 @@ func (r *restream) SetProcessMetadata(id, key string, data interface{}) error {
 	return nil
 }
 
-func (r *restream) GetProcessMetadata(id, key string) (interface{}, error) {
+func (r *restream) GetProcessMetadata(id, key string) (any, error) {
 	r.lock.RLock()
 	defer r.lock.RUnlock()
 
@@ -1471,7 +1471,7 @@ func (r *restream) GetProcessMetadata(id, key string) (interface{}, error) {
 	return data, nil
 }
 
-func (r *restream) SetMetadata(key string, data interface{}) error {
+func (r *restream) SetMetadata(key string, data any) error {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -1480,7 +1480,7 @@ func (r *restream) SetMetadata(key string, data interface{}) error {
 	}
 
 	if r.metadata == nil {
-		r.metadata = make(map[string]interface{})
+		r.metadata = make(map[string]any)
 	}
 
 	if data == nil {
@@ -1498,7 +1498,7 @@ func (r *restream) SetMetadata(key string, data interface{}) error {
 	return nil
 }
 
-func (r *restream) GetMetadata(key string) (interface{}, error) {
+func (r *restream) GetMetadata(key string) (any, error) {
 	r.lock.RLock()
 	defer r.lock.RUnlock()
 

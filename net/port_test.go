@@ -59,7 +59,7 @@ func TestGetPutPort(t *testing.T) {
 func TestPortUnavailable(t *testing.T) {
 	portrange, _ := NewPortrange(1000, 1999)
 
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		port, _ := portrange.Get()
 		require.Equal(t, 1000+i, port, "at index %d", i)
 	}

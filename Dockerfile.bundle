@@ -2,7 +2,7 @@ ARG CORE_IMAGE=datarhei/base:alpine-core-latest
 
 ARG FFMPEG_IMAGE=datarhei/base:alpine-ffmpeg-latest
 
-FROM $CORE_IMAGE as core
+FROM $CORE_IMAGE AS core
 
 FROM $FFMPEG_IMAGE
 

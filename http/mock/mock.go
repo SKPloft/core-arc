@@ -77,7 +77,7 @@ func DummyEcho() *echo.Echo {
 type Response struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
-	Data    interface{}
+	Data    any
 }
 
 func Request(t *testing.T, httpstatus int, router *echo.Echo, method, path string, data io.Reader) *Response {
@@ -119,7 +119,7 @@ func CheckResponse(t *testing.T, res *http.Response) *Response {
 	return response
 }
 
-func Validate(t *testing.T, datatype, data interface{}) bool {
+func Validate(t *testing.T, datatype, data any) bool {
 	schema, _ := jsonschema.Reflect(datatype).MarshalJSON()
 
 	schemaLoader := gojsonschema.NewStringLoader(string(schema))

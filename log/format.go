@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -72,10 +73,11 @@ func (f *consoleFormatter) String(e *Event) string {
 		}
 	}
 
-	message := fmt.Sprintf("%s %s %s", f.writeKV("ts", datetime), f.writeKV("level", level), f.writeKV("component", f.quote(e.Component)))
+	var message strings.Builder
+	message.WriteString(fmt.Sprintf("%s %s %s", f.writeKV("ts", datetime), f.writeKV("level", level), f.writeKV("component", f.quote(e.Component))))
 
 	if len(e.Message) != 0 {
-		message += fmt.Sprintf(" %s", f.writeKV("msg", f.quote(e.Message)))
+		message.WriteString(fmt.Sprintf(" %s", f.writeKV("msg", f.quote(e.Message))))
 	}
 
 	// Sort the map keys
@@ -108,12 +110,12 @@ func (f *consoleFormatter) String(e *Event) string {
 			}
 		}
 
-		message += fmt.Sprintf(" %s", f.writeKV(key, v))
+		message.WriteString(fmt.Sprintf(" %s", f.writeKV(key, v)))
 	}
 
-	message += "\n"
+	message.WriteString("\n")
 
-	return message
+	return message.String()
 }
 
 func (f *consoleFormatter) writeKV(key string, value string) string {

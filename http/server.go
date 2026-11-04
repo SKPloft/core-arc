@@ -435,7 +435,6 @@ func (s *server) setRoutes() {
 	// Mount filesystems
 	for _, filesystem := range s.filesystems {
 		// Define a local variable because later in the loop we have a closure
-		filesystem := filesystem
 
 		mountpoint := filesystem.Mountpoint + "/*"
 		if filesystem.Mountpoint == "/" {

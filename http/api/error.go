@@ -21,7 +21,7 @@ func (e Error) Error() string {
 // Err creates a new API error with the given HTTP status code. If message is empty, the default message
 // for the given code is used. If the first entry in args is a string, it is interpreted as a format string
 // for the remaining entries in args, that is used for fmt.Sprintf. Otherwise the args are ignored.
-func Err(code int, message string, args ...interface{}) Error {
+func Err(code int, message string, args ...any) Error {
 	if len(message) == 0 {
 		message = http.StatusText(code)
 	}

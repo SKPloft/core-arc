@@ -76,7 +76,7 @@ func NewCIDRList(p *[]string, val []string, separator string) *CIDRList {
 func (s *CIDRList) Set(val string) error {
 	list := []string{}
 
-	for _, elm := range strings.Split(val, s.separator) {
+	for elm := range strings.SplitSeq(val, s.separator) {
 		elm = strings.TrimSpace(elm)
 		if len(elm) != 0 {
 			list = append(list, elm)
@@ -132,7 +132,7 @@ func NewCORSOrigins(p *[]string, val []string, separator string) *CORSOrigins {
 func (s *CORSOrigins) Set(val string) error {
 	list := []string{}
 
-	for _, elm := range strings.Split(val, s.separator) {
+	for elm := range strings.SplitSeq(val, s.separator) {
 		elm = strings.TrimSpace(elm)
 		if len(elm) != 0 {
 			list = append(list, elm)

@@ -4,6 +4,7 @@ package log
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
 	"runtime"
 	"runtime/debug"
@@ -43,7 +44,7 @@ func (level *Level) MarshalJSON() ([]byte, error) {
 	return json.Marshal(level.String())
 }
 
-type Fields map[string]interface{}
+type Fields map[string]any
 
 // Logger is an interface that provides means for writing log messages.
 //
@@ -68,12 +69,12 @@ type Logger interface {
 	// printed along the message. This is up to the implementation.
 	WithComponent(component string) Logger
 
-	WithField(key string, value interface{}) Logger
+	WithField(key string, value any) Logger
 	WithFields(fields Fields) Logger
 
 	WithError(err error) Logger
 
-	Log(format string, args ...interface{})
+	Log(format string, args ...any)
 
 	// Debug writes a message with the debug log level to all registered outputs.
 	// The message will be written according to fmt.Printf(). The detail field will
@@ -142,7 +143,7 @@ func (l *logger) WithOutput(w Writer) Logger {
 	return clone
 }
 
-func (l *logger) WithField(key string, value interface{}) Logger {
+func (l *logger) WithField(key string, value any) Logger {
 	return newEvent(l).WithField(key, value)
 }
 
@@ -161,7 +162,7 @@ func (l *logger) WithComponent(component string) Logger {
 	return clone
 }
 
-func (l *logger) Log(format string, args ...interface{}) {
+func (l *logger) Log(format string, args ...any) {
 	e := newEvent(l)
 
 	e.Log(format, args...)
@@ -209,7 +210,7 @@ func newEvent(l *logger) Logger {
 	e := &Event{
 		logger:    l,
 		Component: l.component,
-		Data:      map[string]interface{}{},
+		Data:      map[string]any{},
 	}
 
 	return e
@@ -227,7 +228,7 @@ func (e *Event) WithComponent(component string) Logger {
 	return clone
 }
 
-func (e *Event) Log(format string, args ...interface{}) {
+func (e *Event) Log(format string, args ...any) {
 	_, file, line, _ := runtime.Caller(1)
 	file = strings.TrimPrefix(file, e.logger.modulePath)
 
@@ -256,9 +257,7 @@ func (e *Event) Log(format string, args ...interface{}) {
 
 func (e *Event) clone() *Event {
 	data := make(Fields, len(e.Data))
-	for k, v := range e.Data {
-		data[k] = v
-	}
+	maps.Copy(data, e.Data)
 
 	return &Event{
 		Time:      e.Time,
@@ -272,7 +271,7 @@ func (e *Event) clone() *Event {
 	}
 }
 
-func (e *Event) WithField(key string, value interface{}) Logger {
+func (e *Event) WithField(key string, value any) Logger {
 	return e.WithFields(Fields{
 		key: value,
 	})
@@ -286,16 +285,14 @@ func (e *Event) WithFields(f Fields) Logger {
 	}
 
 	data := make(Fields, len(e.Data)+len(f))
-	for k, v := range e.Data {
-		data[k] = v
-	}
+	maps.Copy(data, e.Data)
 
 	fieldErr := e.err
 	for k, v := range f {
 		isErrField := false
 		if t := reflect.TypeOf(v); t != nil {
 			switch {
-			case t.Kind() == reflect.Func, t.Kind() == reflect.Ptr && t.Elem().Kind() == reflect.Func:
+			case t.Kind() == reflect.Func, t.Kind() == reflect.Pointer && t.Elem().Kind() == reflect.Func:
 				isErrField = true
 			}
 		}
@@ -356,11 +353,11 @@ func (l *Event) Write(p []byte) (int, error) {
 }
 
 type Eventx struct {
-	Time      time.Time   `json:"ts"`
-	Level     Level       `json:"level"`
-	Component string      `json:"component"`
-	Reference string      `json:"ref"`
-	Message   string      `json:"message"`
-	Caller    string      `json:"caller"`
-	Detail    interface{} `json:"detail"`
+	Time      time.Time `json:"ts"`
+	Level     Level     `json:"level"`
+	Component string    `json:"component"`
+	Reference string    `json:"ref"`
+	Message   string    `json:"message"`
+	Caller    string    `json:"caller"`
+	Detail    any       `json:"detail"`
 }

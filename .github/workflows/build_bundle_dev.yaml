@@ -13,31 +13,31 @@ jobs:
         strategy:
             matrix:
                 include:
-                    - core_os: alpine3.21
-                      ffmpeg: "7.1.1"
-                      ffmpeg_os: alpine3.21
+                    - core_os: alpine3.23
+                      ffmpeg: "8.1.1"
+                      ffmpeg_os: alpine3.23
                       platforms: linux/amd64,linux/arm64,linux/arm/v7
                       branch: dev
                       prefix:
                       latest: yes
-                    - core_os: alpine3.21
-                      ffmpeg: "7.1.1-rpi"
-                      ffmpeg_os: alpine3.21
+                    - core_os: alpine3.23
+                      ffmpeg: "8.1.1-rpi"
+                      ffmpeg_os: alpine3.23
                       platforms: linux/arm64,linux/arm/v7
                       branch: dev
                       prefix: rpi-
                       latest: yes
                     - core_os: ubuntu24.04
-                      ffmpeg: "7.1.1-vaapi"
+                      ffmpeg: "8.1.1-vaapi"
                       ffmpeg_os: ubuntu24.04
                       platforms: linux/amd64
                       branch: dev
                       prefix: vaapi-
                       latest: yes
                     - core_os: ubuntu24.04
-                      ffmpeg: "7.1.1-cuda"
+                      ffmpeg: "8.1.1-cuda"
                       ffmpeg_os: ubuntu24.04
-                      ffmpeg_tags: "-cuda12.8.0"
+                      ffmpeg_tags: "-cuda12.9.1"
                       platforms: linux/amd64
                       branch: dev
                       prefix: cuda-
@@ -45,13 +45,13 @@ jobs:
 
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
               with:
                   ref: ${{ matrix.branch }}
 
             - name: Docker meta
               id: meta
-              uses: docker/metadata-action@v5
+              uses: docker/metadata-action@v6
               with:
                   images: |
                       datarhei/core
@@ -76,7 +76,7 @@ jobs:
                   password: ${{ secrets.DOCKER_PASSWORD }}
 
             - name: Build Multi-Arch
-              uses: docker/build-push-action@v5
+              uses: docker/build-push-action@v7
               with:
                   builder: ${{ steps.buildx.outputs.name }}
                   context: .

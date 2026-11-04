@@ -72,10 +72,7 @@ func (s *session) Init(id, reference string, closeCallback func(*session), inact
 	s.tickerStop = make(chan struct{})
 	s.sessionClose = sync.Once{}
 
-	pendingTimeout := inactive
-	if timeout < pendingTimeout {
-		pendingTimeout = timeout
-	}
+	pendingTimeout := min(timeout, inactive)
 
 	s.lock.Lock()
 	defer s.lock.Unlock()

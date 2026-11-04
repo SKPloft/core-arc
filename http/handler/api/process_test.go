@@ -16,7 +16,7 @@ import (
 type Response struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
-	Data    interface{}
+	Data    any
 }
 
 func getDummyRestreamHandler() (*RestreamHandler, error) {

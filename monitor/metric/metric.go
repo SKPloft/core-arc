@@ -2,6 +2,7 @@ package metric
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
 	"sort"
 	"strings"
@@ -117,13 +118,13 @@ func NewMetrics() *metrics {
 }
 
 func (m *metrics) String() string {
-	s := ""
+	var s strings.Builder
 
 	for _, v := range m.values {
-		s += v.String()
+		s.WriteString(v.String())
 	}
 
-	return s
+	return s.String()
 }
 
 func (m *metrics) Values(name string, labels ...string) []Value {
@@ -244,7 +245,8 @@ func (v *value) Hash() string {
 }
 
 func (v *value) String() string {
-	s := fmt.Sprintf("%s: %f {", v.name, v.value)
+	var s strings.Builder
+	s.WriteString(fmt.Sprintf("%s: %f {", v.name, v.value))
 
 	keys := []string{}
 	for k := range v.labels {
@@ -254,12 +256,12 @@ func (v *value) String() string {
 	sort.Strings(keys)
 
 	for _, k := range keys {
-		s += k + "=" + v.labels[k] + " "
+		s.WriteString(k + "=" + v.labels[k] + " ")
 	}
 
-	s += "}"
+	s.WriteString("}")
 
-	return s
+	return s.String()
 }
 
 func (v *value) Name() string {
@@ -286,9 +288,7 @@ func (v *value) Labels() map[string]string {
 
 	l := make(map[string]string, len(v.labels))
 
-	for k, v := range v.labels {
-		l[k] = v
-	}
+	maps.Copy(l, v.labels)
 
 	return l
 }

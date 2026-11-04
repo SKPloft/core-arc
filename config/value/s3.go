@@ -88,7 +88,7 @@ func NewS3StorageListValue(p *[]S3Storage, val []S3Storage, separator string) *s
 func (s *s3StorageListValue) Set(val string) error {
 	list := []S3Storage{}
 
-	for _, elm := range strings.Split(val, s.separator) {
+	for elm := range strings.SplitSeq(val, s.separator) {
 		u, err := url.Parse(elm)
 		if err != nil {
 			return fmt.Errorf("invalid S3 storage URL (%s): %w", elm, err)

@@ -45,7 +45,7 @@ func (p *LogHandler) Log(c echo.Context) error {
 	events := p.buffer.Events()
 
 	if format == "raw" {
-		log := make([]map[string]interface{}, len(events))
+		log := make([]map[string]any, len(events))
 
 		for i, e := range events {
 			e.Data["ts"] = e.Time

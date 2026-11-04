@@ -3,6 +3,7 @@ package cache
 import (
 	"container/list"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -34,7 +35,7 @@ type lrucache struct {
 
 type value struct {
 	key      string
-	obj      interface{}
+	obj      any
 	expireAt time.Time
 	size     uint64
 }
@@ -69,7 +70,7 @@ func NewLRUCache(config LRUConfig) (Cacher, error) {
 
 // createValue create a value type from a key and object. This will be used as
 // value for list.Element.
-func (c *lrucache) createValue(key string, o interface{}, expireAt time.Time, size uint64) *value {
+func (c *lrucache) createValue(key string, o any, expireAt time.Time, size uint64) *value {
 	v := &value{
 		key:      key,
 		obj:      o,
@@ -80,7 +81,7 @@ func (c *lrucache) createValue(key string, o interface{}, expireAt time.Time, si
 	return v
 }
 
-func (c *lrucache) Get(key string) (interface{}, time.Duration, error) {
+func (c *lrucache) Get(key string) (any, time.Duration, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -111,7 +112,7 @@ func (c *lrucache) Get(key string) (interface{}, time.Duration, error) {
 	return o, time.Until(expire), nil
 }
 
-func (c *lrucache) Put(key string, o interface{}, size uint64) error {
+func (c *lrucache) Put(key string, o any, size uint64) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -208,23 +209,15 @@ func (c *lrucache) IsExtensionCacheable(extension string) bool {
 		return true
 	}
 
-	for _, e := range c.blockExtensions {
-		if extension == e {
-			return false
-		}
+	if slices.Contains(c.blockExtensions, extension) {
+		return false
 	}
 
 	if len(c.allowExtensions) == 0 {
 		return true
 	}
 
-	for _, e := range c.allowExtensions {
-		if extension == e {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(c.allowExtensions, extension)
 }
 
 func (c *lrucache) IsSizeCacheable(size uint64) bool {

@@ -42,7 +42,7 @@ func BenchmarkMemList(b *testing.B) {
 	mem, err := NewMemFilesystem(MemConfig{})
 	require.NoError(b, err)
 
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		id := rand.StringAlphanumeric(8)
 		path := fmt.Sprintf("/%d/%s.dat", i, id)
 		mem.WriteFile(path, []byte("foobar"))
@@ -61,7 +61,7 @@ func BenchmarkMemReadFile(b *testing.B) {
 
 	nFiles := 1000
 
-	for i := 0; i < nFiles; i++ {
+	for i := range nFiles {
 		path := fmt.Sprintf("/%d.dat", i)
 		mem.WriteFile(path, []byte(rand.StringAlphanumeric(2*1024)))
 	}
@@ -103,18 +103,17 @@ func BenchmarkMemReadFileWhileWriting(b *testing.B) {
 	nWriters := 1000
 	nFiles := 30
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := b.Context()
 
 	writerWg := sync.WaitGroup{}
 
 	data := []byte(rand.StringAlphanumeric(2 * 1024))
 
-	for i := 0; i < nWriters; i++ {
+	for i := range nWriters {
 		writerWg.Add(1)
 
 		go func(ctx context.Context, from int) {
-			for i := 0; i < nFiles; i++ {
+			for i := range nFiles {
 				path := fmt.Sprintf("/%d.dat", i+from)
 				mem.WriteFile(path, data)
 			}
@@ -144,17 +143,15 @@ func BenchmarkMemReadFileWhileWriting(b *testing.B) {
 
 	readerWg := sync.WaitGroup{}
 
-	for i := 0; i < nReaders; i++ {
-		readerWg.Add(1)
-		go func() {
-			defer readerWg.Done()
+	for range nReaders {
+		readerWg.Go(func() {
 
 			for i := 0; i < b.N; i++ {
 				num := gorand.Intn(nWriters * nFiles)
 				f := mem.Open("/" + strconv.Itoa(num) + ".dat")
 				f.Close()
 			}
-		}()
+		})
 	}
 
 	readerWg.Wait()

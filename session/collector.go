@@ -313,7 +313,7 @@ func newCollector(id string, persistFS fs.Filesystem, logger log.Logger, config 
 	}
 
 	c.sessionPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return &session{}
 		},
 	}

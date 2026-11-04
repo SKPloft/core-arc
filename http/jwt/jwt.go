@@ -105,10 +105,10 @@ func New(config Config) (JWT, error) {
 	return j, nil
 }
 
-func (j *jwt) parseToken(use string) func(c echo.Context, auth string) (interface{}, error) {
-	keyFunc := func(*jwtgo.Token) (interface{}, error) { return j.secret, nil }
+func (j *jwt) parseToken(use string) func(c echo.Context, auth string) (any, error) {
+	keyFunc := func(*jwtgo.Token) (any, error) { return j.secret, nil }
 
-	return func(c echo.Context, auth string) (interface{}, error) {
+	return func(c echo.Context, auth string) (any, error) {
 		var token *jwtgo.Token
 		var err error
 

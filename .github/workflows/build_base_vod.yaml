@@ -15,24 +15,24 @@ jobs:
                 include:
                     - os: alpine
                       os_version: "3.21"
-                      golang: golang:1.23-alpine3.21
+                      golang: golang:1.27-alpine3.21
                       platforms: linux/amd64,linux/arm64,linux/arm/v7
                       branch: vod
                     - os: ubuntu
                       os_version: "24.04"
-                      golang: golang:1.23-alpine3.21
+                      golang: golang:1.27-alpine3.21
                       platforms: linux/amd64
                       branch: vod
 
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@v7
               with:
                   ref: ${{ matrix.branch }}
 
             - name: Docker meta
               id: meta
-              uses: docker/metadata-action@v5
+              uses: docker/metadata-action@v6
               with:
                   images: |
                       datarhei/base
@@ -56,7 +56,7 @@ jobs:
                   password: ${{ secrets.DOCKER_PASSWORD }}
 
             - name: Build Multi-Arch
-              uses: docker/build-push-action@v5
+              uses: docker/build-push-action@v7
               with:
                   builder: ${{ steps.buildx.outputs.name }}
                   context: .

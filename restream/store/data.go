@@ -9,8 +9,8 @@ type StoreData struct {
 
 	Process  map[string]*app.Process `json:"process"`
 	Metadata struct {
-		System  map[string]interface{}            `json:"system"`
-		Process map[string]map[string]interface{} `json:"process"`
+		System  map[string]any            `json:"system"`
+		Process map[string]map[string]any `json:"process"`
 	} `json:"metadata"`
 }
 
@@ -20,8 +20,8 @@ func NewStoreData() StoreData {
 	}
 
 	c.Process = make(map[string]*app.Process)
-	c.Metadata.System = make(map[string]interface{})
-	c.Metadata.Process = make(map[string]map[string]interface{})
+	c.Metadata.System = make(map[string]any)
+	c.Metadata.Process = make(map[string]map[string]any)
 
 	return c
 }

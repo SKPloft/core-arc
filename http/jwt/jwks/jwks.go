@@ -58,7 +58,7 @@ type jwksImpl struct {
 // rawJWK represents a raw key inside a JWKs.
 type jwkImpl struct {
 	key         rawJWK
-	precomputed interface{}
+	precomputed any
 }
 
 func (j *jwkImpl) ID() string {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"os"
 	"sync"
 	"time"
@@ -116,15 +117,15 @@ type Listener interface {
 
 // listener implements the Listener interface.
 type listener struct {
-	pc   *net.UDPConn
+	pc   *packetConn
 	addr net.Addr
 
 	config Config
 
-	backlog  chan packet.Packet
-	connReqs map[uint32]*connRequest
-	conns    map[uint32]*srtConn
-	lock     sync.RWMutex
+	backlog     chan packet.Packet
+	conns       map[uint32]*srtConn
+	connsByPeer map[uint32]*srtConn
+	lock        sync.RWMutex
 
 	start time.Time
 
@@ -177,21 +178,42 @@ func Listen(network, address string, config Config) (Listener, error) {
 		Control: ListenControl(config),
 	}
 
-	lp, err := lc.ListenPacket(context.Background(), "udp", address)
+	network = "udp"
+
+	ip, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return nil, fmt.Errorf("listen: invalid address: %w", err)
+	}
+
+	if len(ip) != 0 {
+		addr, err := netip.ParseAddr(ip)
+		if err != nil {
+			return nil, fmt.Errorf("listen: invalid address: %w", err)
+		}
+
+		if addr.Is4() {
+			network = "udp4"
+		} else if addr.Is6() {
+			network = "udp6"
+		}
+	}
+
+	lp, err := lc.ListenPacket(context.Background(), network, address)
 	if err != nil {
 		return nil, fmt.Errorf("listen: %w", err)
 	}
 
 	pc := lp.(*net.UDPConn)
 
-	ln.pc = pc
 	ln.addr = pc.LocalAddr()
 	if ln.addr == nil {
 		return nil, fmt.Errorf("listen: no local address")
 	}
 
-	ln.connReqs = make(map[uint32]*connRequest)
+	ln.pc = newPacketConn(pc)
+
 	ln.conns = make(map[uint32]*srtConn)
+	ln.connsByPeer = make(map[uint32]*srtConn)
 
 	ln.backlog = make(chan packet.Packet, 128)
 
@@ -222,7 +244,7 @@ func Listen(network, address string, config Config) (Listener, error) {
 			}
 
 			ln.pc.SetReadDeadline(time.Now().Add(3 * time.Second))
-			n, addr, err := ln.pc.ReadFrom(buffer)
+			n, addr, localIP, err := ln.pc.readFromTo(buffer)
 			if err != nil {
 				if errors.Is(err, os.ErrDeadlineExceeded) {
 					continue
@@ -240,6 +262,11 @@ func Listen(network, address string, config Config) (Listener, error) {
 			p, err := packet.NewPacketFromData(addr, buffer[:n])
 			if err != nil {
 				continue
+			}
+
+			if localIP != nil {
+				laddr := ln.addr.(*net.UDPAddr)
+				p.Header().LocalAddr = &net.UDPAddr{IP: localIP, Port: laddr.Port}
 			}
 
 			// non-blocking
@@ -326,9 +353,10 @@ func (ln *listener) error() error {
 	return ln.doneErr
 }
 
-func (ln *listener) handleShutdown(socketId uint32) {
+func (ln *listener) handleShutdown(c *srtConn) {
 	ln.lock.Lock()
-	delete(ln.conns, socketId)
+	delete(ln.conns, c.socketId)
+	delete(ln.connsByPeer, c.peerSocketId)
 	ln.lock.Unlock()
 }
 
@@ -347,6 +375,9 @@ func (ln *listener) Close() {
 
 		ln.lock.RLock()
 		for _, conn := range ln.conns {
+			if conn == nil {
+				continue
+			}
 			conn.close()
 		}
 		ln.lock.RUnlock()
@@ -402,7 +433,7 @@ func (ln *listener) reader(ctx context.Context) {
 			conn, ok := ln.conns[p.Header().DestinationSocketId]
 			ln.lock.RUnlock()
 
-			if !ok {
+			if !ok || conn == nil {
 				// ignore the packet, we don't know the destination
 				break
 			}
@@ -438,7 +469,7 @@ func (ln *listener) send(p packet.Packet) {
 	ln.log("packet:send:dump", func() string { return p.Dump() })
 
 	// Write the packet's contents to the wire
-	ln.pc.WriteTo(buffer, p.Header().Addr)
+	ln.pc.writeToFrom(buffer, p.Header().Addr, p.Header().LocalAddr)
 
 	if p.Header().IsControlPacket {
 		// Control packets can be decommissioned because they will not be sent again (data packets might be retransferred)

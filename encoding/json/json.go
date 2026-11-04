@@ -7,7 +7,7 @@ import (
 )
 
 // Unmarshal is a wrapper for json.Unmarshal
-func Unmarshal(data []byte, v interface{}) error {
+func Unmarshal(data []byte, v any) error {
 	return json.Unmarshal(data, v)
 }
 

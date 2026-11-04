@@ -1,6 +1,7 @@
 package replace
 
 import (
+	"maps"
 	"net/url"
 	"regexp"
 	"strings"
@@ -127,9 +128,7 @@ func (r *replacer) compileTemplate(str, params string, vars map[string]string, d
 	p := make(map[string]string)
 
 	// Copy the defaults
-	for key, value := range defaults {
-		p[key] = value
-	}
+	maps.Copy(p, defaults)
 
 	// taken from net/url.ParseQuery
 	for params != "" {

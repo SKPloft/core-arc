@@ -2,6 +2,7 @@ package jwt
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/datarhei/core/v16/http/api"
@@ -146,7 +147,7 @@ func (v *auth0Validator) Validate(c echo.Context) (bool, string, error) {
 	return true, subject, nil
 }
 
-func (v *auth0Validator) keyFunc(token *jwtgo.Token) (interface{}, error) {
+func (v *auth0Validator) keyFunc(token *jwtgo.Token) (any, error) {
 	// Verify 'aud' claim
 	if _, err := token.Claims.GetAudience(); err != nil {
 		return nil, fmt.Errorf("invalid audience: %w", err)
@@ -163,13 +164,7 @@ func (v *auth0Validator) keyFunc(token *jwtgo.Token) (interface{}, error) {
 		return nil, fmt.Errorf("invalid subject: %w", err)
 	}
 
-	found := false
-	for _, u := range v.users {
-		if sub == u {
-			found = true
-			break
-		}
-	}
+	found := slices.Contains(v.users, sub)
 
 	if !found {
 		return nil, fmt.Errorf("user not allowed")

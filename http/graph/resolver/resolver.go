@@ -43,7 +43,7 @@ func (r *queryResolver) getProcess(id string) (*models.Process, error) {
 		return nil, err
 	}
 
-	metadata, ok := m.(map[string]interface{})
+	metadata, ok := m.(map[string]any)
 	if !ok {
 		metadata = nil
 	}

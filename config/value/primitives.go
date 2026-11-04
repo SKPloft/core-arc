@@ -54,7 +54,7 @@ func NewStringList(p *[]string, val []string, separator string) *StringList {
 func (s *StringList) Set(val string) error {
 	list := []string{}
 
-	for _, elm := range strings.Split(val, s.separator) {
+	for elm := range strings.SplitSeq(val, s.separator) {
 		elm = strings.TrimSpace(elm)
 		if len(elm) != 0 {
 			list = append(list, elm)
@@ -107,7 +107,7 @@ func NewStringMapString(p *map[string]string, val map[string]string) *StringMapS
 func (s *StringMapString) Set(val string) error {
 	mappings := make(map[string]string)
 
-	for _, elm := range strings.Split(val, " ") {
+	for elm := range strings.SplitSeq(val, " ") {
 		elm = strings.TrimSpace(elm)
 		if len(elm) == 0 {
 			continue

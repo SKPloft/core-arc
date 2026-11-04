@@ -8,7 +8,7 @@ import (
 type Uint64 uint64
 
 // UnmarshalGQL implements the graphql.Unmarshaler interface
-func (u *Uint64) UnmarshalGQL(v interface{}) error {
+func (u *Uint64) UnmarshalGQL(v any) error {
 	value, ok := v.(uint64)
 	if !ok {
 		return fmt.Errorf("Uint64 must be a uint64")

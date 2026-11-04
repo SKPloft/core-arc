@@ -229,7 +229,7 @@ func (w *gzipResponseWriter) Push(target string, opts *http.PushOptions) error {
 
 func gzipPool(config Config) sync.Pool {
 	return sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			w, err := gzip.NewWriterLevel(io.Discard, config.Level)
 			if err != nil {
 				return err
@@ -241,7 +241,7 @@ func gzipPool(config Config) sync.Pool {
 
 func bufferPool() sync.Pool {
 	return sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			b := &bytes.Buffer{}
 			return b
 		},

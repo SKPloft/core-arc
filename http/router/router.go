@@ -2,6 +2,7 @@ package router
 
 import (
 	"fmt"
+	"maps"
 	"path/filepath"
 	"strings"
 )
@@ -54,8 +55,8 @@ func New(blockedPrefixes []string, routes map[string]string, static string) (Rou
 			}
 		}
 
-		if strings.HasSuffix(route, "/*") {
-			route = strings.TrimSuffix(route, "/*")
+		if before, ok := strings.CutSuffix(route, "/*"); ok {
+			route = before
 			path, err := filepath.Abs(target)
 			if err != nil {
 				return nil, fmt.Errorf("invalid route %s: %w", target, err)
@@ -78,9 +79,7 @@ func New(blockedPrefixes []string, routes map[string]string, static string) (Rou
 func (r *router) FileRoutes() map[string]string {
 	routes := map[string]string{}
 
-	for k, v := range r.fileRoutes {
-		routes[k] = v
-	}
+	maps.Copy(routes, r.fileRoutes)
 
 	return routes
 }
@@ -88,9 +87,7 @@ func (r *router) FileRoutes() map[string]string {
 func (r *router) DirRoutes() map[string]string {
 	routes := map[string]string{}
 
-	for k, v := range r.dirRoutes {
-		routes[k] = v
-	}
+	maps.Copy(routes, r.dirRoutes)
 
 	return routes
 }

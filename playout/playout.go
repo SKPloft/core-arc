@@ -15,19 +15,19 @@ type StatusSwap struct {
 }
 
 type Status struct {
-	ID          string      `json:"id"`
-	Address     string      `json:"url"`
-	Stream      uint64      `json:"stream"`
-	Queue       uint64      `json:"queue"`
-	AQueue      uint64      `json:"aqueue"`
-	Dup         uint64      `json:"dup"`
-	Drop        uint64      `json:"drop"`
-	Enc         uint64      `json:"enc"`
-	Looping     bool        `json:"looping"`
-	Duplicating bool        `json:"duplicating"`
-	GOP         string      `json:"gop"`
-	Debug       interface{} `json:"debug"`
-	Input       StatusIO    `json:"input"`
-	Output      StatusIO    `json:"output"`
-	Swap        StatusSwap  `json:"swap"`
+	ID          string     `json:"id"`
+	Address     string     `json:"url"`
+	Stream      uint64     `json:"stream"`
+	Queue       uint64     `json:"queue"`
+	AQueue      uint64     `json:"aqueue"`
+	Dup         uint64     `json:"dup"`
+	Drop        uint64     `json:"drop"`
+	Enc         uint64     `json:"enc"`
+	Looping     bool       `json:"looping"`
+	Duplicating bool       `json:"duplicating"`
+	GOP         string     `json:"gop"`
+	Debug       any        `json:"debug"`
+	Input       StatusIO   `json:"input"`
+	Output      StatusIO   `json:"output"`
+	Swap        StatusSwap `json:"swap"`
 }

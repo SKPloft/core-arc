@@ -119,6 +119,7 @@ var (
 	HEVC       = MakeVideoCodecType(avCodecTypeMagic + 2)
 	VP9        = MakeVideoCodecType(avCodecTypeMagic + 3)
 	AV1        = MakeVideoCodecType(avCodecTypeMagic + 4)
+	VVC        = MakeVideoCodecType(avCodecTypeMagic + 5)
 	AAC        = MakeAudioCodecType(avCodecTypeMagic + 1)
 	PCM_MULAW  = MakeAudioCodecType(avCodecTypeMagic + 2)
 	PCM_ALAW   = MakeAudioCodecType(avCodecTypeMagic + 3)
@@ -139,6 +140,8 @@ func (c CodecType) String() string {
 		return "VP9"
 	case AV1:
 		return "AV1"
+	case VVC:
+		return "VVC"
 	case AAC:
 		return "AAC"
 	case PCM_MULAW:
@@ -236,11 +239,11 @@ type DemuxCloser interface {
 
 // Packet stores compressed audio/video data.
 type Packet struct {
-	IsKeyFrame      bool          // video packet is key frame
-	Idx             int8          // stream index in container format
-	CompositionTime time.Duration // packet presentation time minus decode time for H264 B-Frame
-	Time            time.Duration // packet decode time
-	Data            []byte        // packet data
+	IsKeyFrame      bool   // video packet is key frame
+	Idx             int8   // stream index in container format
+	CompositionTime int64  // packet presentation time minus decode time for H264 B-Frame
+	Time            int64  // packet decode time
+	Data            []byte // packet data
 }
 
 // Raw audio frame.

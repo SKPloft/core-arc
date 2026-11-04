@@ -53,9 +53,9 @@ Stream mapping:
   Stream #1:0 -> #0:1 (pcm_u8 (native) -> aac (native))
 Press [q] to stop, [?] for help`
 
-	data := strings.Split(rawdata, "\n")
+	data := strings.SplitSeq(rawdata, "\n")
 
-	for _, d := range data {
+	for d := range data {
 		prober.Parse(d)
 	}
 
@@ -212,9 +212,9 @@ Stream mapping:
   Stream #1:0 -> #0:1 (pcm_u8 (native) -> aac (native))
 Press [q] to stop, [?] for help`
 
-	data := strings.Split(rawdata, "\n")
+	data := strings.SplitSeq(rawdata, "\n")
 
-	for _, d := range data {
+	for d := range data {
 		prober.Parse("[info] " + d)
 	}
 

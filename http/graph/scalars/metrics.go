@@ -12,7 +12,7 @@ type MetricsResponseValue struct {
 	isNull bool
 }
 
-func (u *MetricsResponseValue) UnmarshalGQL(v interface{}) error {
+func (u *MetricsResponseValue) UnmarshalGQL(v any) error {
 	*u = MetricsResponseValue{
 		TS:     time.Time{},
 		Value:  0,

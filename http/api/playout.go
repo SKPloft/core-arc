@@ -42,7 +42,7 @@ type PlayoutStatus struct {
 	Looping     bool              `json:"looping"`
 	Duplicating bool              `json:"duplicating"`
 	GOP         string            `json:"gop"`
-	Debug       interface{}       `json:"debug"`
+	Debug       any               `json:"debug"`
 	Input       PlayoutStatusIO   `json:"input"`
 	Output      PlayoutStatusIO   `json:"output"`
 	Swap        PlayoutStatusSwap `json:"swap"`

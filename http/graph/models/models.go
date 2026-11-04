@@ -44,7 +44,7 @@ func (s *RawAVstreamSwap) UnmarshalPlayout(status playout.Status) {
 	s.Lasterror = status.Swap.LastError
 }
 
-func (p *Process) UnmarshalRestream(process *app.Process, state *app.State, report *app.Log, metadata map[string]interface{}) {
+func (p *Process) UnmarshalRestream(process *app.Process, state *app.State, report *app.Log, metadata map[string]any) {
 	p.ID = process.ID
 	p.Type = "ffmpeg"
 	p.Reference = process.Reference

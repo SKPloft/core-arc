@@ -180,7 +180,7 @@ type restreamerUISourceInput struct {
 
 type restreamerUISource struct {
 	Inputs   []restreamerUISourceInput  `json:"inputs"`
-	Settings interface{}                `json:"settings"`
+	Settings any                        `json:"settings"`
 	Streams  []restreamerUISourceStream `json:"streams"`
 	Type     string                     `json:"type"`
 }
@@ -222,10 +222,10 @@ type restreamerUIProfileCoderSettingsX264 struct {
 type restreamerUIProfileCoderSettingsCopy struct{}
 
 type restreamerUIProfileAV struct {
-	Coder    string      `json:"coder"`
-	Codec    string      `json:"codec"`
-	Mapping  []string    `json:"mapping"`
-	Settings interface{} `json:"settings"`
+	Coder    string   `json:"coder"`
+	Codec    string   `json:"codec"`
+	Mapping  []string `json:"mapping"`
+	Settings any      `json:"settings"`
 }
 
 type restreamerUIProfile struct {
@@ -317,8 +317,8 @@ type restreamerUIEgress struct {
 		Address string   `json:"address"`
 		Options []string `json:"options"`
 	} `json:"output"`
-	Settings interface{} `json:"settings"`
-	Version  int         `json:"version"`
+	Settings any `json:"settings"`
+	Version  int `json:"version"`
 }
 
 func importSnapshotInterval(value string, defval int) int {
@@ -1189,7 +1189,7 @@ func importV1(fs fs.Filesystem, path string, cfg importConfig) (store.StoreData,
 	process.Config = config
 	r.Process[process.ID] = process
 
-	r.Metadata.Process["restreamer-ui:ingest:"+cfg.id] = make(map[string]interface{})
+	r.Metadata.Process["restreamer-ui:ingest:"+cfg.id] = make(map[string]any)
 	r.Metadata.Process["restreamer-ui:ingest:"+cfg.id]["restreamer-ui"] = ui
 
 	// Snapshot
@@ -1403,7 +1403,7 @@ func importV1(fs fs.Filesystem, path string, cfg importConfig) (store.StoreData,
 		process.Config = config
 		r.Process[process.ID] = process
 
-		r.Metadata.Process[egressId] = make(map[string]interface{})
+		r.Metadata.Process[egressId] = make(map[string]any)
 		r.Metadata.Process[egressId]["restreamer-ui"] = egress
 	}
 

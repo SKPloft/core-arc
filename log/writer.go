@@ -271,7 +271,7 @@ func (b *bufferWriter) Events() []*Event {
 	b.lock.RLock()
 	defer b.lock.RUnlock()
 
-	b.lines.Do(func(l interface{}) {
+	b.lines.Do(func(l any) {
 		if l == nil {
 			return
 		}

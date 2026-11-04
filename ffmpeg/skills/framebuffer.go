@@ -35,7 +35,7 @@ var fbformats []fbformat = []fbformat{
 func DevicesFramebuffer() ([]HWDevice, error) {
 	devices := []HWDevice{}
 
-	for i := 0; i < 32; i++ {
+	for i := range 32 {
 		path := fmt.Sprintf("/dev/fb%d", i)
 		_, err := os.Stat(path)
 		if err != nil {

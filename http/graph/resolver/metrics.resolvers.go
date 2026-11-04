@@ -63,7 +63,7 @@ func (r *queryResolver) Metrics(ctx context.Context, query models.MetricsInput) 
 			if _, ok := series[hash]; !ok {
 				series[hash] = &models.Metric{
 					Name:   v.Name(),
-					Labels: map[string]interface{}{},
+					Labels: map[string]any{},
 					Values: []*scalars.MetricsResponseValue{},
 				}
 			}
@@ -96,7 +96,7 @@ func (r *queryResolver) Metrics(ctx context.Context, query models.MetricsInput) 
 				if _, ok := series[hash]; !ok {
 					series[hash] = &models.Metric{
 						Name:   v.Name(),
-						Labels: map[string]interface{}{},
+						Labels: map[string]any{},
 						Values: []*scalars.MetricsResponseValue{},
 					}
 				}

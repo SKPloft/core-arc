@@ -1,6 +1,7 @@
 package validator
 
 import (
+	"bufio"
 	"bytes"
 	"cmp"
 	"context"
@@ -15,6 +16,7 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -68,7 +70,7 @@ var (
 	// defines a common or complex set of validation(s) to simplify
 	// adding validation to structs.
 	bakedInAliases = map[string]string{
-		"iscolor":         "hexcolor|rgb|rgba|hsl|hsla",
+		"iscolor":         "hexcolor|rgb|rgba|hsl|hsla|cmyk",
 		"country_code":    "iso3166_1_alpha2|iso3166_1_alpha3|iso3166_1_alpha_numeric",
 		"eu_country_code": "iso3166_1_alpha2_eu|iso3166_1_alpha3_eu|iso3166_1_alpha_numeric_eu",
 	}
@@ -132,6 +134,7 @@ var (
 		"rgba":                          isRGBA,
 		"hsl":                           isHSL,
 		"hsla":                          isHSLA,
+		"cmyk":                          isCMYK,
 		"e164":                          isE164,
 		"email":                         isEmail,
 		"url":                           isURL,
@@ -206,6 +209,7 @@ var (
 		"ip6_addr":                      isIP6AddrResolvable,
 		"ip_addr":                       isIPAddrResolvable,
 		"unix_addr":                     isUnixAddrResolvable,
+		"uds_exists":                    isUnixDomainSocketExists,
 		"mac":                           isMAC,
 		"hostname":                      isHostnameRFC952,  // RFC 952
 		"hostname_rfc1123":              isHostnameRFC1123, // RFC 1123
@@ -332,61 +336,110 @@ func isOneOfCI(fl FieldLevel) bool {
 func isUnique(fl FieldLevel) bool {
 	field := fl.Field()
 	param := fl.Param()
-	v := reflect.ValueOf(struct{}{})
+
+	// sentinel used as map key for nil values
+	var nilKey = struct{}{}
 
 	switch field.Kind() {
 	case reflect.Slice, reflect.Array:
-		elem := field.Type().Elem()
-		if elem.Kind() == reflect.Ptr {
-			elem = elem.Elem()
-		}
+		seen := make(map[interface{}]struct{})
 
-		if param == "" {
-			m := reflect.MakeMap(reflect.MapOf(elem, v.Type()))
-
-			for i := 0; i < field.Len(); i++ {
-				m.SetMapIndex(reflect.Indirect(field.Index(i)), v)
-			}
-			return field.Len() == m.Len()
-		}
-
-		sf, ok := elem.FieldByName(param)
-		if !ok {
-			panic(fmt.Sprintf("Bad field name %s", param))
-		}
-
-		sfTyp := sf.Type
-		if sfTyp.Kind() == reflect.Ptr {
-			sfTyp = sfTyp.Elem()
-		}
-
-		m := reflect.MakeMap(reflect.MapOf(sfTyp, v.Type()))
-		var fieldlen int
 		for i := 0; i < field.Len(); i++ {
-			key := reflect.Indirect(reflect.Indirect(field.Index(i)).FieldByName(param))
-			if key.IsValid() {
-				fieldlen++
-				m.SetMapIndex(key, v)
+			elem := field.Index(i)
+
+			// -------- unique (no param) --------
+			if param == "" {
+				var key interface{}
+
+				if elem.Kind() == reflect.Ptr {
+					if elem.IsNil() {
+						key = nilKey
+					} else {
+						key = elem.Elem().Interface() // <-- compare underlying value
+					}
+				} else {
+					key = elem.Interface()
+				}
+
+				if _, ok := seen[key]; ok {
+					return false
+				}
+				seen[key] = struct{}{}
+				continue
 			}
+
+			// -------- unique=Field --------
+
+			if elem.Kind() == reflect.Ptr {
+				if elem.IsNil() {
+					if _, ok := seen[nilKey]; ok {
+						return false
+					}
+					seen[nilKey] = struct{}{}
+					continue
+				}
+				elem = elem.Elem()
+			}
+
+			if elem.Kind() != reflect.Struct {
+				panic(fmt.Sprintf("Bad field type %s", elem.Type()))
+			}
+
+			sf := elem.FieldByName(param)
+			if !sf.IsValid() {
+				panic(fmt.Sprintf("Bad field name %s", param))
+			}
+
+			var key interface{}
+
+			if sf.Kind() == reflect.Ptr {
+				if sf.IsNil() {
+					key = nilKey
+				} else {
+					key = sf.Elem().Interface()
+				}
+			} else {
+				key = sf.Interface()
+			}
+
+			if _, ok := seen[key]; ok {
+				return false
+			}
+			seen[key] = struct{}{}
 		}
-		return fieldlen == m.Len()
+
+		return true
+
 	case reflect.Map:
-		var m reflect.Value
-		if field.Type().Elem().Kind() == reflect.Ptr {
-			m = reflect.MakeMap(reflect.MapOf(field.Type().Elem().Elem(), v.Type()))
-		} else {
-			m = reflect.MakeMap(reflect.MapOf(field.Type().Elem(), v.Type()))
-		}
+		seen := make(map[interface{}]struct{})
 
 		for _, k := range field.MapKeys() {
-			m.SetMapIndex(reflect.Indirect(field.MapIndex(k)), v)
+			val := field.MapIndex(k)
+
+			var key interface{}
+
+			if val.Kind() == reflect.Ptr {
+				if val.IsNil() {
+					key = nilKey
+				} else {
+					key = val.Elem().Interface() // <-- compare underlying value
+				}
+			} else {
+				key = val.Interface()
+			}
+
+			if _, ok := seen[key]; ok {
+				return false
+			}
+			seen[key] = struct{}{}
 		}
 
-		return field.Len() == m.Len()
+		return true
+
 	default:
 		if parent := fl.Parent(); parent.Kind() == reflect.Struct {
 			uniqueField := parent.FieldByName(param)
-			if uniqueField == reflect.ValueOf(nil) {
+			if !uniqueField.IsValid() {
 				panic(fmt.Sprintf("Bad field name provided %s", param))
 			}
 
@@ -1718,6 +1771,11 @@ func isHSLA(fl FieldLevel) bool {
 	return hslaRegex().MatchString(fl.Field().String())
 }
 
+// isCMYK is the validation function for validating if the current field's value is a valid CMYK color.
+func isCMYK(fl FieldLevel) bool {
+	return cmykRegex().MatchString(fl.Field().String())
+}
+
 // isHSL is the validation function for validating if the current field's value is a valid HSL color.
 func isHSL(fl FieldLevel) bool {
 	return hslRegex().MatchString(fl.Field().String())
@@ -2609,6 +2667,70 @@ func isUnixAddrResolvable(fl FieldLevel) bool {
 	_, err := net.ResolveUnixAddr("unix", fl.Field().String())
 
 	return err == nil
+}
+
+// isUnixDomainSocketExists is the validation function for validating if the field's value is an existing Unix domain socket.
+// It handles both filesystem-based sockets and Linux abstract sockets.
+// It always returns false for Windows.
+func isUnixDomainSocketExists(fl FieldLevel) bool {
+	if runtime.GOOS == "windows" {
+		return false
+	}
+
+	sockpath := fl.Field().String()
+
+	if sockpath == "" {
+		return false
+	}
+
+	// On Linux, check for abstract sockets (prefixed with @)
+	if runtime.GOOS == "linux" && strings.HasPrefix(sockpath, "@") {
+		return isAbstractSocketExists(sockpath)
+	}
+
+	// For filesystem-based sockets, check if the path exists and is a socket
+	stats, err := os.Stat(sockpath)
+	if err != nil {
+		return false
+	}
+
+	return stats.Mode().Type() == fs.ModeSocket
+}
+
+// isAbstractSocketExists checks if a Linux abstract socket exists by reading /proc/net/unix.
+// Abstract sockets are identified by an @ prefix in human-readable form.
+func isAbstractSocketExists(sockpath string) bool {
+	file, err := os.Open("/proc/net/unix")
+	if err != nil {
+		return false
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	scanner := bufio.NewScanner(file)
+
+	// Skip the header line
+	if !scanner.Scan() {
+		return false
+	}
+
+	// Abstract sockets in /proc/net/unix are represented with @ prefix
+	// The socket path is the last field in each line
+	for scanner.Scan() {
+		line := scanner.Text()
+		fields := strings.Fields(line)
+
+		// The path is the last field (8th field typically)
+		if len(fields) >= 8 {
+			path := fields[len(fields)-1]
+			if path == sockpath {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func isIP4Addr(fl FieldLevel) bool {

@@ -20,7 +20,7 @@ func TestJSONWriter(t *testing.T) {
 		Caller:    "me",
 		Message:   "hello world",
 		err:       "",
-		Data:      map[string]interface{}{"foo": "bar"},
+		Data:      map[string]any{"foo": "bar"},
 	})
 
 	require.Equal(t, `{"Time":"2009-11-10T23:00:00Z","Level":"INFO","Component":"test","Caller":"me","Message":"hello world","Data":{"caller":"me","component":"test","foo":"bar","message":"hello world","ts":"2009-11-10T23:00:00Z"}}`, buffer.String())
@@ -38,7 +38,7 @@ func TestConsoleWriter(t *testing.T) {
 		Caller:    "me",
 		Message:   "hello world",
 		err:       "",
-		Data:      map[string]interface{}{"foo": "bar"},
+		Data:      map[string]any{"foo": "bar"},
 	})
 
 	require.Equal(t, `ts=2009-11-10T23:00:00Z level=INFO component="test" msg="hello world" foo="bar"`+"\n", buffer.String())
@@ -57,7 +57,7 @@ func TestTopicWriter(t *testing.T) {
 		Caller:    "me",
 		Message:   "hello world",
 		err:       "",
-		Data:      map[string]interface{}{"foo": "bar"},
+		Data:      map[string]any{"foo": "bar"},
 	})
 
 	writer2.Write(&Event{
@@ -68,7 +68,7 @@ func TestTopicWriter(t *testing.T) {
 		Caller:    "me",
 		Message:   "hello world",
 		err:       "",
-		Data:      map[string]interface{}{"foo": "bar"},
+		Data:      map[string]any{"foo": "bar"},
 	})
 
 	require.Equal(t, 1, len(bufwriter.Events()))
@@ -81,7 +81,7 @@ func TestTopicWriter(t *testing.T) {
 		Caller:    "me",
 		Message:   "hello world",
 		err:       "",
-		Data:      map[string]interface{}{"foo": "bar"},
+		Data:      map[string]any{"foo": "bar"},
 	})
 
 	writer2.Write(&Event{
@@ -92,7 +92,7 @@ func TestTopicWriter(t *testing.T) {
 		Caller:    "me",
 		Message:   "hello world",
 		err:       "",
-		Data:      map[string]interface{}{"foo": "bar"},
+		Data:      map[string]any{"foo": "bar"},
 	})
 
 	require.Equal(t, 3, len(bufwriter.Events()))
@@ -112,7 +112,7 @@ func TestMultiwriter(t *testing.T) {
 		Caller:    "me",
 		Message:   "hello world",
 		err:       "",
-		Data:      map[string]interface{}{"foo": "bar"},
+		Data:      map[string]any{"foo": "bar"},
 	})
 
 	require.Equal(t, 1, len(bufwriter1.Events()))
@@ -139,7 +139,7 @@ func TestLevelRewriter(t *testing.T) {
 		Caller:    "me",
 		Message:   "hello world",
 		err:       "",
-		Data:      map[string]interface{}{"foo": "bar"},
+		Data:      map[string]any{"foo": "bar"},
 	})
 
 	events := bufwriter.Events()
@@ -155,7 +155,7 @@ func TestLevelRewriter(t *testing.T) {
 		Caller:    "me",
 		Message:   "hello world",
 		err:       "",
-		Data:      map[string]interface{}{"bar": "foo"},
+		Data:      map[string]any{"bar": "foo"},
 	})
 
 	events = bufwriter.Events()
@@ -171,7 +171,7 @@ func TestLevelRewriter(t *testing.T) {
 		Caller:    "me",
 		Message:   "hello world",
 		err:       "",
-		Data:      map[string]interface{}{"foo": "bar"},
+		Data:      map[string]any{"foo": "bar"},
 	})
 
 	events = bufwriter.Events()

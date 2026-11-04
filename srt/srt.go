@@ -311,7 +311,7 @@ func (s *server) Channels() Channels {
 	s.srtlogLock.RLock()
 	for topic, buf := range s.srtlog {
 
-		buf.Do(func(l interface{}) {
+		buf.Do(func(l any) {
 			if l == nil {
 				return
 			}

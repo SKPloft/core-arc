@@ -168,8 +168,41 @@ func New(config Config) Parser {
 	return p
 }
 
+// trimLogLevelPrefix removes a known FFmpeg log level prefix from a line. FFmpeg
+// prepends such a token when AV_LOG_PRINT_LEVEL is active, i.e. with
+// -loglevel level+<level>, and the default progress report is printed through
+// av_log() as well. Lines that don't start with one of the known tokens are
+// returned unchanged, so arbitrary bracketed log text keeps its meaning. The
+// result is a sub-slice of line; no copy is made and no regexp is evaluated.
+func trimLogLevelPrefix(line string) string {
+	if len(line) < 3 || line[0] != '[' {
+		return line
+	}
+
+	end := strings.IndexByte(line, ']')
+	if end < 2 || end+1 >= len(line) || line[end+1] != ' ' {
+		return line
+	}
+
+	switch line[1:end] {
+	case "quiet", "panic", "fatal", "error", "warning", "info", "verbose", "debug", "trace":
+		return line[end+2:]
+	}
+
+	return line
+}
+
 func (p *parser) Parse(line string) uint64 {
-	isDefaultProgress := strings.HasPrefix(line, "frame=")
+	// The default progress report is printed through av_log(). With
+	// AV_LOG_PRINT_LEVEL active (i.e. -loglevel level+info) it carries a log
+	// level prefix, e.g. "[info] frame=   29 fps= 25 ...", and can only be
+	// recognized once that prefix is removed. The JSON stats markers are
+	// matched by substring and cut at their marker, so a level prefix in front
+	// of them doesn't affect them. The original line is kept for the log and
+	// the prelude output in either case.
+	statsLine := trimLogLevelPrefix(line)
+
+	isDefaultProgress := strings.HasPrefix(statsLine, "frame=")
 	isFFmpegInputs := strings.Contains(line, "ffmpeg.inputs:")
 	isFFmpegOutputs := strings.Contains(line, "ffmpeg.outputs:")
 	isFFmpegProgress := strings.Contains(line, "ffmpeg.progress:")
@@ -307,7 +340,7 @@ func (p *parser) Parse(line string) uint64 {
 	}
 
 	if isDefaultProgress {
-		if err := p.parseDefaultProgress(line); err != nil {
+		if err := p.parseDefaultProgress(statsLine); err != nil {
 			p.logger.WithFields(log.Fields{
 				"line":  line,
 				"error": err,
@@ -562,7 +595,7 @@ func (p *parser) Prelude() []string {
 
 	tail := []string{}
 
-	p.prelude.tail.Do(func(l interface{}) {
+	p.prelude.tail.Do(func(l any) {
 		if l == nil {
 			return
 		}
@@ -658,7 +691,7 @@ func (p *parser) Log() []process.Line {
 	p.lock.log.RLock()
 	defer p.lock.log.RUnlock()
 
-	p.log.Do(func(l interface{}) {
+	p.log.Do(func(l any) {
 		if l == nil {
 			return
 		}
@@ -764,7 +797,7 @@ func (p *parser) Report() Report {
 func (p *parser) ReportHistory() []Report {
 	var history = []Report{}
 
-	p.logHistory.Do(func(l interface{}) {
+	p.logHistory.Do(func(l any) {
 		if l == nil {
 			return
 		}
@@ -781,7 +814,7 @@ func (p *parser) TransferReportHistory(dst Parser) error {
 		return fmt.Errorf("the target parser is not of the required type")
 	}
 
-	p.logHistory.Do(func(l interface{}) {
+	p.logHistory.Do(func(l any) {
 		if l == nil {
 			return
 		}

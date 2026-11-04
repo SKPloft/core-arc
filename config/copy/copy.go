@@ -1,13 +1,13 @@
 package copy
 
+import "maps"
+
 import "github.com/datarhei/core/v16/config/value"
 
 func StringMap(src map[string]string) map[string]string {
 	dst := make(map[string]string)
 
-	for k, v := range src {
-		dst[k] = v
-	}
+	maps.Copy(dst, src)
 
 	return dst
 }

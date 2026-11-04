@@ -810,12 +810,10 @@ func (a *api) start() error {
 			}
 
 			wg := sync.WaitGroup{}
-			wg.Add(1)
 
-			go func() {
+			wg.Go(func() {
 				tempserver.ListenAndServe()
-				wg.Done()
-			}()
+			})
 
 			var certerror bool
 

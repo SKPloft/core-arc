@@ -86,7 +86,7 @@ func (vs *Variables) Set(name, val string) error {
 	return v.value.Set(val)
 }
 
-func (vs *Variables) Log(level, name string, format string, args ...interface{}) {
+func (vs *Variables) Log(level, name string, format string, args ...any) {
 	v := vs.findVariable(name)
 	if v == nil {
 		return

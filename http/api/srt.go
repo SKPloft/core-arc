@@ -1,6 +1,8 @@
 package api
 
 import (
+	"maps"
+
 	"github.com/datarhei/core/v16/srt"
 
 	gosrt "github.com/datarhei/gosrt"
@@ -158,9 +160,7 @@ func (s *SRTChannels) Unmarshal(ss *srt.Channels) {
 	s.Connections = make(map[uint32]SRTConnection)
 	s.Log = make(map[string][]SRTLog)
 
-	for k, v := range ss.Publisher {
-		s.Publisher[k] = v
-	}
+	maps.Copy(s.Publisher, ss.Publisher)
 
 	for k, v := range ss.Subscriber {
 		vv := make([]uint32, len(v))

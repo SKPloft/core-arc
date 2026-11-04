@@ -271,7 +271,7 @@ func (m *historyMonitor) History(timerange, interval time.Duration, patterns []m
 
 	m.lock.Lock()
 
-	m.metrics.Do(func(l interface{}) {
+	m.metrics.Do(func(l any) {
 		if l == nil {
 			return
 		}
@@ -326,7 +326,7 @@ func (m *historyMonitor) resample(values []HistoryMetrics, timerange, interval t
 	steps := int(timerange / interval)
 
 	lastJ := 0
-	for i := 0; i < steps; i++ {
+	for i := range steps {
 		now := from.Add(time.Duration(i) * interval)
 
 		if now.Before(start) {

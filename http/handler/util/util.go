@@ -11,7 +11,7 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func ShouldBindJSONValidation(c echo.Context, obj interface{}, validate bool) error {
+func ShouldBindJSONValidation(c echo.Context, obj any, validate bool) error {
 	req := c.Request()
 
 	if req.ContentLength == 0 {
@@ -43,7 +43,7 @@ func ShouldBindJSONValidation(c echo.Context, obj interface{}, validate bool) er
 // ShouldBindJSON binds the body data of the request to the given object. An error is
 // returned if the body data is not valid JSON or the validation of the unmarshalled
 // data failed.
-func ShouldBindJSON(c echo.Context, obj interface{}) error {
+func ShouldBindJSON(c echo.Context, obj any) error {
 	return ShouldBindJSONValidation(c, obj, true)
 }
 

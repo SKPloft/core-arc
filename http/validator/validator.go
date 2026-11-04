@@ -18,6 +18,6 @@ func New() echo.Validator {
 	return v
 }
 
-func (cv *jsonValidator) Validate(i interface{}) error {
+func (cv *jsonValidator) Validate(i any) error {
 	return cv.validator.Struct(i)
 }

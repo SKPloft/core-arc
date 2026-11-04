@@ -22,7 +22,7 @@ func (d Duration) MarshalJSON() ([]byte, error) {
 // can be either a float which is interpreted as seconds or a string
 // that is interpreted as a formatted duration.
 func (d *Duration) UnmarshalJSON(b []byte) error {
-	var v interface{}
+	var v any
 	if err := json.Unmarshal(b, &v); err != nil {
 		return err
 	}

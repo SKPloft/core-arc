@@ -24,9 +24,9 @@ func (b *logwrapper) Write(p []byte) (int, error) {
 	log := logentry{}
 	if err := json.Unmarshal(p, &log); err == nil {
 		if len(log.Message) != 0 {
-			lines := strings.Split(log.Message, "\n")
+			lines := strings.SplitSeq(log.Message, "\n")
 
-			for _, line := range lines {
+			for line := range lines {
 				b.writer.Write([]byte(line))
 			}
 
